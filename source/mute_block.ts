@@ -1,5 +1,7 @@
 /// <reference lib="dom" />
 
+import { isInHomeTimeline } from "./utils.ts";
+
 const BUTTON_CONTAINER_ID = "better-xitter-ocmb-buttons";
 const BUTTON_SIZE = 18;
 const ICON_COLOR = "rgb(113 118 123)";
@@ -130,12 +132,6 @@ function injectButtons(tweet: HTMLElement): void {
   buttonRow.append(muteButton, blockButton);
 
   placeButtons(nameContainer, buttonRow, currentConfig.position);
-}
-
-function isInHomeTimeline(tweet: HTMLElement): boolean {
-  return Boolean(
-    tweet.closest('div[aria-label="Timeline: Your Home Timeline"]'),
-  );
 }
 
 function placeButtons(

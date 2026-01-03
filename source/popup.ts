@@ -11,10 +11,13 @@ import {
   setSettings,
   type Settings,
 } from "./options.ts";
+import { normalizeHandleList } from "./utils.ts";
 
 type ToggleOptions = {
   disabled?: boolean;
 };
+
+const affiliatedOrgsInputId = "input-hide-affiliated-org-tweets-orgs";
 
 function buildToggle(
   option: Option,
@@ -131,6 +134,32 @@ function buildToggles(settings: Settings): {
     inputs.set(option.id, checkbox);
     parentList.append(item);
 
+    if (option.id === "hideAffiliatedOrgTweets") {
+      const orgsInput = document.createElement("input");
+      orgsInput.id = affiliatedOrgsInputId;
+      orgsInput.type = "text";
+      orgsInput.placeholder =
+        "Org handles, comma separated (e.g. snowstormnet, twocents)";
+      orgsInput.value = settings.hideAffiliatedOrgTweetsOrgs;
+      orgsInput.disabled = !checkbox.checked;
+
+      orgsInput.addEventListener("input", () => {
+        const normalized = normalizeHandleList(orgsInput.value).join(",");
+        setSettings({ hideAffiliatedOrgTweetsOrgs: normalized });
+      });
+
+      const orgsLabel = document.createElement("label");
+      orgsLabel.append(
+        document.createTextNode(" Orgs to hide "),
+        orgsInput,
+      );
+      item.append(orgsLabel);
+
+      checkbox.addEventListener("change", () => {
+        orgsInput.disabled = !checkbox.checked;
+      });
+    }
+
     if (option.children?.length) {
       const childList = document.createElement("ul");
       childList.classList.add("child-list");
@@ -215,6 +244,19 @@ function watchStorageUpdates(
       const value = (quickActionsPositionChange.newValue ??
         defaultSettings.quickActionsPosition) as QuickActionPosition;
       quickActionsPosition.value = value;
+    }
+
+    const affiliatedOrgsChange = changes.hideAffiliatedOrgTweetsOrgs;
+    if (affiliatedOrgsChange) {
+      const input = document.getElementById(
+        affiliatedOrgsInputId,
+      ) as HTMLInputElement | null;
+      if (input) {
+        input.value = String(
+          affiliatedOrgsChange.newValue ??
+            defaultSettings.hideAffiliatedOrgTweetsOrgs,
+        );
+      }
     }
   };
 

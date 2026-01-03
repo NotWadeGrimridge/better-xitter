@@ -99,6 +99,14 @@ export const optionHierarchy = [
     ],
   },
   {
+    id: "hideAffiliatedOrgTweets",
+    label: "Hide affiliate org tweets (For you only)",
+    // Handled via JavaScript in content_script; CSS rule is a no-op placeholder.
+    selector: "body",
+    rule: "",
+    defaultEnabled: false,
+  },
+  {
     id: "hideGrokDrawer",
     label: "Hide Grok drawer",
     selector: '[data-testid="GrokDrawer"]',
@@ -185,9 +193,11 @@ export type QuickSettings = {
   quickActionsPosition: QuickActionPosition;
 };
 export type Settings = {
-  [key: string]: boolean | QuickActionPosition;
+  [key: string]: boolean | QuickActionPosition | string;
   quickActionsEnabled: boolean;
   quickActionsPosition: QuickActionPosition;
+  hideAffiliatedOrgTweets: boolean;
+  hideAffiliatedOrgTweetsOrgs: string;
 };
 
 const optionDefaults = options.reduce(
@@ -199,6 +209,8 @@ export const defaultSettings: Settings = {
   ...optionDefaults,
   quickActionsEnabled: true,
   quickActionsPosition: "left",
+  hideAffiliatedOrgTweets: false,
+  hideAffiliatedOrgTweetsOrgs: "",
 };
 
 const storage: chrome.storage.StorageArea = chrome.storage.sync;

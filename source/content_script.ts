@@ -8,6 +8,7 @@ import {
   type Settings,
 } from "./options.ts";
 import { configureQuickMuteBlock } from "./mute_block.ts";
+import { configureAffiliateHide } from "./affiliate_hide.ts";
 const styleId = "better-xitter-style";
 const liveOnXDataAttribute = "data-better-xitter-live-on-x-hidden";
 let liveOnXObserver: MutationObserver | null = null;
@@ -18,7 +19,9 @@ function ensureStyleElement(): HTMLStyleElement {
 
   const style = document.createElement("style");
   style.id = styleId;
-  document.head!.append(style);
+  const parent = document.head ?? document.documentElement;
+  if (!parent) throw new Error("Missing document root");
+  parent.append(style);
   return style;
 }
 
@@ -182,6 +185,38 @@ function watchSettingChanges(settings: Settings): void {
       updateLiveOnXVisibility(Boolean(current.hideLiveOnX));
     }
 
+    const hideAffiliateChange = changes.hideAffiliatedOrgTweets;
+    if (hideAffiliateChange) {
+      current = {
+        ...current,
+        hideAffiliatedOrgTweets: Boolean(
+          hideAffiliateChange.newValue ??
+            defaultSettings.hideAffiliatedOrgTweets,
+        ),
+      };
+      updated = true;
+      configureAffiliateHide(
+        Boolean(current.hideAffiliatedOrgTweets),
+        current.hideAffiliatedOrgTweetsOrgs,
+      );
+    }
+
+    const hideAffiliateOrgsChange = changes.hideAffiliatedOrgTweetsOrgs;
+    if (hideAffiliateOrgsChange) {
+      current = {
+        ...current,
+        hideAffiliatedOrgTweetsOrgs: String(
+          hideAffiliateOrgsChange.newValue ??
+            defaultSettings.hideAffiliatedOrgTweetsOrgs,
+        ),
+      };
+      updated = true;
+      configureAffiliateHide(
+        Boolean(current.hideAffiliatedOrgTweets),
+        current.hideAffiliatedOrgTweetsOrgs,
+      );
+    }
+
     if (updated) {
       applySettings(current);
       configureQuickMuteBlock({
@@ -202,6 +237,10 @@ async function main(): Promise<void> {
     position: settings.quickActionsPosition,
   });
   updateLiveOnXVisibility(Boolean(settings.hideLiveOnX));
+  configureAffiliateHide(
+    Boolean(settings.hideAffiliatedOrgTweets),
+    settings.hideAffiliatedOrgTweetsOrgs,
+  );
   watchSettingChanges(settings);
 }
 

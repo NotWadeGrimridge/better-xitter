@@ -10,12 +10,18 @@ const distDir = new URL("./dist/chrome/", projectRoot);
 const distZip = new URL("./dist/better-xitter-chrome.zip", projectRoot);
 const manifestPath = new URL("./manifest.json", sourceDir);
 
-const entryPoints = ["content_script.ts", "popup.ts"];
+const entryPoints = [
+  "content_script.ts",
+  "popup.ts",
+  "background.ts",
+  "home_timeline_xhr_hook.ts",
+];
 
 async function bundle(entry: string): Promise<void> {
   const entryPath = fromFileUrl(new URL(entry, sourceDir));
+  const outName = entry.endsWith(".ts") ? `${entry.slice(0, -3)}.js` : entry;
   const outputPath = fromFileUrl(
-    new URL(entry.replace(/\.ts$/, ".js"), distDir),
+    new URL(outName, distDir),
   );
 
   const command = new Deno.Command(Deno.execPath(), {
