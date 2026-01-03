@@ -15,6 +15,7 @@ const entryPoints = [
   "popup.ts",
   "background.ts",
   "home_timeline_xhr_hook.ts",
+  "affiliates_page_xhr_hook.ts",
 ];
 
 async function bundle(entry: string): Promise<void> {

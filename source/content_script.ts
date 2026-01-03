@@ -9,6 +9,7 @@ import {
 } from "./options.ts";
 import { configureQuickMuteBlock } from "./mute_block.ts";
 import { configureAffiliateHide } from "./affiliate_hide.ts";
+import { configureAffiliatesMuteButtons } from "./affiliates_mute.ts";
 const styleId = "better-xitter-style";
 const liveOnXDataAttribute = "data-better-xitter-live-on-x-hidden";
 let liveOnXObserver: MutationObserver | null = null;
@@ -232,6 +233,7 @@ function watchSettingChanges(settings: Settings): void {
 async function main(): Promise<void> {
   const settings = await getSettings();
   applySettings(settings);
+  configureAffiliatesMuteButtons(true);
   configureQuickMuteBlock({
     enabled: settings.quickActionsEnabled,
     position: settings.quickActionsPosition,
