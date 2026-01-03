@@ -88,7 +88,7 @@ function buildToggles(settings: Settings): {
   quickActionsLabel.htmlFor = quickActionsToggleId;
   quickActionsLabel.append(
     quickActionsToggle,
-    document.createTextNode(" Enable mute/block buttons"),
+    document.createTextNode(" Enable quick action buttons"),
   );
 
   const quickActionsToggleItem = document.createElement("li");
