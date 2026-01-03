@@ -106,6 +106,13 @@ export const optionHierarchy = [
     defaultEnabled: true,
   },
   {
+    id: "hideGrokButton",
+    label: "Hide Grok button in posts",
+    selector: 'article[data-testid="tweet"] button[aria-label="Grok actions"]',
+    rule: "display: none !important",
+    defaultEnabled: true,
+  },
+  {
     id: "hideChatDrawer",
     label: "Hide Chat drawer",
     selector: '[data-testid="chat-drawer-root"]',
