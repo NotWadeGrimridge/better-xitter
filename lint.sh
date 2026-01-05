@@ -2,6 +2,6 @@
 
 set -ex
 
-deno check source/ scripts/
-deno lint source/ scripts/
-deno fmt source/ scripts/
+deno check src/ scripts/
+deno lint src/ scripts/
+deno fmt src/ scripts/

@@ -7,9 +7,9 @@ import {
   options,
   type Settings,
 } from "./options.ts";
-import { configureQuickMuteBlock } from "./mute_block.ts";
-import { configureAffiliateHide } from "./affiliate_hide.ts";
-import { configureAffiliatesMuteButtons } from "./affiliates_mute.ts";
+import { configureQuickMuteBlock } from "./quick-actions/quick_actions.ts";
+import { configureAffiliateHide } from "./hide-affiliates/hide_affiliates.ts";
+import { configureAffiliatesMuteButtons } from "./mute-affiliates/mute_affiliates.ts";
 const styleId = "better-xitter-style";
 const liveOnXDataAttribute = "data-better-xitter-live-on-x-hidden";
 let liveOnXObserver: MutationObserver | null = null;

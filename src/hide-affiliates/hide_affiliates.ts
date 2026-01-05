@@ -1,6 +1,6 @@
 /// <reference lib="dom" />
 
-import { isInHomeTimeline, normalizeHandleList } from "./utils.ts";
+import { isInHomeTimeline, normalizeHandleList } from "../utils.ts";
 
 const affiliateHiddenAttribute = "data-better-xitter-affiliate-hidden";
 

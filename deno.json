@@ -24,8 +24,8 @@
     "exclude": ["dist"]
   },
   "tasks": {
-    "dev": "deno run --allow-read --allow-write --allow-run --watch scripts/build.ts",
+    "dev": "deno run --allow-read --allow-write --allow-run --watch=src scripts/build.ts",
     "build": "deno run --allow-read --allow-write --allow-run scripts/build.ts",
-    "check": "deno check source/"
+    "check": "deno check src/"
   }
 }

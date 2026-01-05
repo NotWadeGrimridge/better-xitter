@@ -21,7 +21,7 @@ async function ensureHomeTimelineHookRegistered(): Promise<void> {
   if (!hasHome) {
     toRegister.push({
       id: HOOK_SCRIPT_ID,
-      js: ["home_timeline_xhr_hook.js"],
+      js: ["hide-affiliates/home_timeline_xhr_hook.js"],
       matches: ["https://x.com/*"],
       runAt: "document_start",
       world: "MAIN",
@@ -37,7 +37,7 @@ async function ensureHomeTimelineHookRegistered(): Promise<void> {
   if (!hasAffiliates || !affiliatesMatchesOk) {
     toRegister.push({
       id: AFFILIATES_HOOK_SCRIPT_ID,
-      js: ["affiliates_page_xhr_hook.js"],
+      js: ["mute-affiliates/affiliates_page_xhr_hook.js"],
       matches: AFFILIATES_PAGE_MATCHES,
       runAt: "document_start",
       world: "MAIN",

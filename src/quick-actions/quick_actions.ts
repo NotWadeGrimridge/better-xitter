@@ -1,6 +1,6 @@
 /// <reference lib="dom" />
 
-import { isInHomeTimeline } from "./utils.ts";
+import { isInHomeTimeline } from "../utils.ts";
 
 const BUTTON_CONTAINER_ID = "better-xitter-ocmb-buttons";
 const BUTTON_SIZE = 18;

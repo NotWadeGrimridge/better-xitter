@@ -5,17 +5,17 @@ import { dirname, fromFileUrl, join, relative } from "@std/path";
 import { zipSync } from "fflate";
 
 const projectRoot = new URL("../", import.meta.url);
-const sourceDir = new URL("./source/", projectRoot);
+const sourceDir = new URL("./src/", projectRoot);
 const distDir = new URL("./dist/chrome/", projectRoot);
 const distZip = new URL("./dist/better-xitter-chrome.zip", projectRoot);
 const manifestPath = new URL("./manifest.json", sourceDir);
 
 const entryPoints = [
-  "content_script.ts",
+  "content.ts",
   "popup.ts",
   "background.ts",
-  "home_timeline_xhr_hook.ts",
-  "affiliates_page_xhr_hook.ts",
+  "hide-affiliates/home_timeline_xhr_hook.ts",
+  "mute-affiliates/affiliates_page_xhr_hook.ts",
 ];
 
 async function bundle(entry: string): Promise<void> {

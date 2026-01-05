@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VERSION="$(jq -r '.version' source/manifest.json)"
+VERSION="$(jq -r '.version' src/manifest.json)"
 TAG="v${VERSION}"
 ZIP_PATH="dist/better-xitter-chrome.zip"
 
