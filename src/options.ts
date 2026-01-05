@@ -86,6 +86,16 @@ export const optionHierarchy = [
     selector: "body",
     rule: "",
     defaultEnabled: false,
+    children: [
+      {
+        id: "hideAffiliatedOrgQuoteTweets",
+        label: "Also hide quote-tweets of affiliates",
+        // Handled via JavaScript in content_script; CSS rule is a no-op placeholder.
+        selector: "body",
+        rule: "",
+        defaultEnabled: false,
+      },
+    ],
   },
   {
     id: "hideNewPostsBanner",
@@ -198,6 +208,7 @@ export type Settings = {
   quickActionsPosition: QuickActionPosition;
   hideAffiliatedOrgTweets: boolean;
   hideAffiliatedOrgTweetsOrgs: string;
+  hideAffiliatedOrgQuoteTweets: boolean;
 };
 
 const optionDefaults = options.reduce(
@@ -211,6 +222,7 @@ export const defaultSettings: Settings = {
   quickActionsPosition: "right",
   hideAffiliatedOrgTweets: false,
   hideAffiliatedOrgTweetsOrgs: "",
+  hideAffiliatedOrgQuoteTweets: false,
 };
 
 const storage: chrome.storage.StorageArea = chrome.storage.sync;

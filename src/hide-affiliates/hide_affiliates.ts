@@ -8,6 +8,7 @@ let observer: MutationObserver | null = null;
 let messageHooked = false;
 
 let enabled = false;
+let hideQuoteTweets = false;
 let targetOrgHandles = new Set<string>();
 const userAffiliationsByAuthorHandle = new Map<string, Set<string>>();
 let scanScheduled = false;
@@ -15,8 +16,10 @@ let scanScheduled = false;
 export function configureAffiliateHide(
   nextEnabled: boolean,
   orgHandlesCsv: string,
+  nextHideQuoteTweets: boolean,
 ): void {
   enabled = nextEnabled;
+  hideQuoteTweets = nextHideQuoteTweets;
   targetOrgHandles = new Set(normalizeHandleList(orgHandlesCsv));
 
   if (!enabled || targetOrgHandles.size === 0) {
@@ -127,7 +130,7 @@ function applyVisibility(tweet: HTMLElement): void {
     return;
   }
 
-  if (!hasAffiliateMatch(tweet)) {
+  if (!hasAffiliateMatch(tweet, hideQuoteTweets)) {
     show(tweet);
     return;
   }
@@ -135,15 +138,24 @@ function applyVisibility(tweet: HTMLElement): void {
   hide(tweet);
 }
 
-function hasAffiliateMatch(tweet: HTMLElement): boolean {
-  const authorHandle = extractAuthorHandle(tweet);
-  if (!authorHandle) return false;
+function hasAffiliateMatch(
+  tweet: HTMLElement,
+  includeQuoteTweets: boolean,
+): boolean {
+  const handles = includeQuoteTweets ? extractAllAuthorHandles(tweet) : (() => {
+    const handle = extractAuthorHandle(tweet);
+    return handle ? [handle] : [];
+  })();
 
-  const orgs = userAffiliationsByAuthorHandle.get(authorHandle);
-  if (!orgs || orgs.size === 0) return false;
+  if (handles.length === 0) return false;
 
-  for (const org of orgs) {
-    if (targetOrgHandles.has(org)) return true;
+  for (const handle of handles) {
+    const orgs = userAffiliationsByAuthorHandle.get(handle);
+    if (!orgs || orgs.size === 0) continue;
+
+    for (const org of orgs) {
+      if (targetOrgHandles.has(org)) return true;
+    }
   }
   return false;
 }
@@ -153,18 +165,35 @@ function extractAuthorHandle(tweet: HTMLElement): string | null {
     'div[data-testid="User-Name"]',
   );
   if (!nameContainer) return null;
+  return extractHandleFromUserNameContainer(nameContainer);
+}
 
-  const link = nameContainer.querySelector<HTMLAnchorElement>(
-    'a[href^="/"][role="link"]',
+function extractAllAuthorHandles(tweet: HTMLElement): string[] {
+  const containers = tweet.querySelectorAll<HTMLElement>(
+    'div[data-testid="User-Name"]',
   );
-  const href = link?.getAttribute("href") ?? "";
-  if (!href.startsWith("/")) return null;
+  const handles = new Set<string>();
 
-  let path = href;
-  for (; path.startsWith("/"); path = path.slice(1));
-  const handle = path.split("/")[0]?.trim();
-  if (!handle) return null;
-  return handle.toLowerCase();
+  for (const container of containers) {
+    const handle = extractHandleFromUserNameContainer(container);
+    if (!handle) continue;
+    handles.add(handle);
+  }
+
+  return [...handles];
+}
+
+function extractHandleFromUserNameContainer(
+  container: HTMLElement,
+): string | null {
+  const spans = container.querySelectorAll<HTMLSpanElement>("span");
+  for (const span of spans) {
+    const text = span.textContent?.trim() ?? "";
+    if (!text.startsWith("@")) continue;
+    const candidate = text.slice(1).trim();
+    if (candidate) return candidate.toLowerCase();
+  }
+  return null;
 }
 
 function hide(tweet: HTMLElement): void {

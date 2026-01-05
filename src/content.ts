@@ -199,6 +199,7 @@ function watchSettingChanges(settings: Settings): void {
       configureAffiliateHide(
         Boolean(current.hideAffiliatedOrgTweets),
         current.hideAffiliatedOrgTweetsOrgs,
+        Boolean(current.hideAffiliatedOrgQuoteTweets),
       );
     }
 
@@ -215,6 +216,24 @@ function watchSettingChanges(settings: Settings): void {
       configureAffiliateHide(
         Boolean(current.hideAffiliatedOrgTweets),
         current.hideAffiliatedOrgTweetsOrgs,
+        Boolean(current.hideAffiliatedOrgQuoteTweets),
+      );
+    }
+
+    const hideAffiliateQuoteTweetsChange = changes.hideAffiliatedOrgQuoteTweets;
+    if (hideAffiliateQuoteTweetsChange) {
+      current = {
+        ...current,
+        hideAffiliatedOrgQuoteTweets: Boolean(
+          hideAffiliateQuoteTweetsChange.newValue ??
+            defaultSettings.hideAffiliatedOrgQuoteTweets,
+        ),
+      };
+      updated = true;
+      configureAffiliateHide(
+        Boolean(current.hideAffiliatedOrgTweets),
+        current.hideAffiliatedOrgTweetsOrgs,
+        Boolean(current.hideAffiliatedOrgQuoteTweets),
       );
     }
 
@@ -242,6 +261,7 @@ async function main(): Promise<void> {
   configureAffiliateHide(
     Boolean(settings.hideAffiliatedOrgTweets),
     settings.hideAffiliatedOrgTweetsOrgs,
+    Boolean(settings.hideAffiliatedOrgQuoteTweets),
   );
   watchSettingChanges(settings);
 }

@@ -116,17 +116,21 @@ function buildToggles(settings: Settings): {
         childCheckboxes.push(appendOptionNode(child as Option, childList));
       }
 
-      const setDisabled = (disabled: boolean): void => {
-        for (const childCheckbox of childCheckboxes) {
-          childCheckbox.disabled = disabled;
-        }
-        childList.classList.toggle("is-disabled", disabled);
-      };
-
-      setDisabled(checkbox.checked);
-      checkbox.addEventListener("change", () => setDisabled(checkbox.checked));
-
       if (option.id === "hideRightSidebar") {
+        const setChildrenDisabled = (disabled: boolean): void => {
+          for (const childCheckbox of childCheckboxes) {
+            childCheckbox.disabled = disabled;
+          }
+          childList.classList.toggle("is-disabled", disabled);
+          childList.hidden = false;
+        };
+
+        setChildrenDisabled(checkbox.checked);
+        checkbox.addEventListener(
+          "change",
+          () => setChildrenDisabled(checkbox.checked),
+        );
+
         const details = document.createElement("details");
         const summary = document.createElement("summary");
         summary.append(document.createTextNode("Right sidebar"));
@@ -141,6 +145,20 @@ function buildToggles(settings: Settings): {
         details.append(container);
         item.append(details);
       } else {
+        const setChildrenEnabled = (enabled: boolean): void => {
+          for (const childCheckbox of childCheckboxes) {
+            childCheckbox.disabled = !enabled;
+          }
+          childList.classList.toggle("is-disabled", !enabled);
+          childList.hidden = !enabled;
+        };
+
+        setChildrenEnabled(checkbox.checked);
+        checkbox.addEventListener(
+          "change",
+          () => setChildrenEnabled(checkbox.checked),
+        );
+
         item.append(childList);
       }
 
@@ -286,11 +304,23 @@ function watchStorageUpdates(
     for (const [parentId, controls] of childControls.entries()) {
       const parent = inputs.get(parentId);
       if (!parent) continue;
-      const disabled = parent.checked;
-      for (const childCheckbox of controls.childCheckboxes) {
-        childCheckbox.disabled = disabled;
+      const isHideRightSidebar = parentId === "hideRightSidebar";
+      const enabled = parent.checked;
+
+      if (isHideRightSidebar) {
+        const disabled = enabled;
+        for (const childCheckbox of controls.childCheckboxes) {
+          childCheckbox.disabled = disabled;
+        }
+        controls.childList.classList.toggle("is-disabled", disabled);
+        controls.childList.hidden = false;
+      } else {
+        for (const childCheckbox of controls.childCheckboxes) {
+          childCheckbox.disabled = !enabled;
+        }
+        controls.childList.classList.toggle("is-disabled", !enabled);
+        controls.childList.hidden = !enabled;
       }
-      controls.childList.classList.toggle("is-disabled", disabled);
     }
 
     const quickActionsEnabled = changes.quickActionsEnabled;

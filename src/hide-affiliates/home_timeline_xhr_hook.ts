@@ -136,37 +136,45 @@
               "tweet_results",
               "result",
             ]);
+        if (!tweet) continue;
 
-        const author = get(tweet, [
-          "core",
-          "user_results",
-          "result",
-          "core",
-          "screen_name",
-        ]);
-        if (typeof author !== "string" || author.length === 0) continue;
+        collectPairsFromTweet(tweet, results);
 
-        const affiliateUrl = get(tweet, [
-          "core",
-          "user_results",
-          "result",
-          "affiliates_highlighted_label",
-          "label",
-          "url",
-          "url",
-        ]);
-        if (typeof affiliateUrl !== "string" || affiliateUrl.length === 0) {
-          continue;
-        }
-
-        const org = parseHandleFromProfileUrl(affiliateUrl);
-        if (!org) continue;
-
-        results.push([author.toLowerCase(), org.toLowerCase()]);
+        const quotedTweet = get(tweet, ["quoted_status_result", "result"]);
+        if (quotedTweet) collectPairsFromTweet(quotedTweet, results);
       }
     }
 
     return results;
+  }
+
+  function collectPairsFromTweet(tweet: unknown, results: Pair[]): void {
+    const author = get(tweet, [
+      "core",
+      "user_results",
+      "result",
+      "core",
+      "screen_name",
+    ]);
+    if (typeof author !== "string" || author.length === 0) return;
+
+    const affiliateUrl = get(tweet, [
+      "core",
+      "user_results",
+      "result",
+      "affiliates_highlighted_label",
+      "label",
+      "url",
+      "url",
+    ]);
+    if (typeof affiliateUrl !== "string" || affiliateUrl.length === 0) {
+      return;
+    }
+
+    const org = parseHandleFromProfileUrl(affiliateUrl);
+    if (!org) return;
+
+    results.push([author.toLowerCase(), org.toLowerCase()]);
   }
 
   type PathSegment = string | number;
