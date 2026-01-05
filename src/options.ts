@@ -208,7 +208,7 @@ const optionDefaults = options.reduce(
 export const defaultSettings: Settings = {
   ...optionDefaults,
   quickActionsEnabled: true,
-  quickActionsPosition: "left",
+  quickActionsPosition: "right",
   hideAffiliatedOrgTweets: false,
   hideAffiliatedOrgTweetsOrgs: "",
 };

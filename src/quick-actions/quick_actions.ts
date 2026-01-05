@@ -26,7 +26,7 @@ export type QuickMuteBlockConfig = {
 
 let currentConfig: QuickMuteBlockConfig = {
   enabled: true,
-  position: "left",
+  position: "right",
 };
 
 let observer: MutationObserver | null = null;
