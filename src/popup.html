@@ -6,7 +6,8 @@
     <title>better-xitter settings</title>
     <style>
       body {
-        min-width: 200px;
+        min-width: 225px;
+        font-size: 13px;
       }
       .hint {
         margin: 0 0 8px 0;
@@ -18,14 +19,46 @@
         padding: 0;
         margin: 0;
       }
+      label[for="select-quick-actions-position"] {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+      }
+      summary {
+        padding: 4px 6px;
+        margin: 4px 0;
+        outline: 1px solid #ddd;
+        border-radius: 4px;
+      }
+      li > details > div {
+        padding: 4px 0 0 0;
+      }
+      li {
+        margin: 4px 0;
+      }
       .child-list {
-        margin: 4px 0 0 8px;
+        margin: 4px 0 0 12px;
       }
       .child-list label {
         padding-left: 8px;
       }
       .is-disabled {
         opacity: 0.6;
+      }
+      .help-icon {
+        display: inline-block;
+        margin-left: 4px;
+        cursor: help;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        border: 1px solid #888;
+        background-color: #f8f8f8;
+        color: #333;
+        font-size: 9px;
+        line-height: 12px;
+        text-align: center;
+        vertical-align: text-bottom;
       }
     </style>
   </head>

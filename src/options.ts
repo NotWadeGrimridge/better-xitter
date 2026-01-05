@@ -10,25 +10,6 @@ type OptionDefinition = {
 
 export const optionHierarchy = [
   {
-    id: "hideNewPostsBanner",
-    label: "Hide New Posts button",
-    selector:
-      'button[aria-label="New posts are available. Push the period key to go to the them."]',
-    rule: "display: none !important",
-    defaultEnabled: true,
-  },
-  {
-    id: "hidePromotedPosts",
-    label: "Hide promoted posts",
-    selector: `
-      [data-testid="placementTracking"] article,
-      a[href*="quick_promote_web"]
-    `,
-    // The article combinator keeps this from hiding all cards inside placementTracking (e.g. videos).
-    rule: "display: none !important",
-    defaultEnabled: true,
-  },
-  {
     id: "hideRightSidebar",
     label: "Hide right sidebar",
     selector: '[data-testid="sidebarColumn"]',
@@ -100,16 +81,28 @@ export const optionHierarchy = [
   },
   {
     id: "hideAffiliatedOrgTweets",
-    label: "Hide affiliate org tweets (For you only)",
+    label: "Hide affiliates of chosen orgs",
     // Handled via JavaScript in content_script; CSS rule is a no-op placeholder.
     selector: "body",
     rule: "",
     defaultEnabled: false,
   },
   {
-    id: "hideGrokDrawer",
-    label: "Hide Grok drawer",
-    selector: '[data-testid="GrokDrawer"]',
+    id: "hideNewPostsBanner",
+    label: "Hide New Posts button",
+    selector:
+      'button[aria-label="New posts are available. Push the period key to go to the them."]',
+    rule: "display: none !important",
+    defaultEnabled: true,
+  },
+  {
+    id: "hidePromotedPosts",
+    label: "Hide promoted posts",
+    selector: `
+      [data-testid="placementTracking"] article,
+      a[href*="quick_promote_web"]
+    `,
+    // The article combinator keeps this from hiding all cards inside placementTracking (e.g. videos).
     rule: "display: none !important",
     defaultEnabled: true,
   },
@@ -117,6 +110,13 @@ export const optionHierarchy = [
     id: "hideGrokButton",
     label: "Hide Grok button in posts",
     selector: 'article[data-testid="tweet"] button[aria-label="Grok actions"]',
+    rule: "display: none !important",
+    defaultEnabled: true,
+  },
+  {
+    id: "hideGrokDrawer",
+    label: "Hide Grok drawer",
+    selector: '[data-testid="GrokDrawer"]',
     rule: "display: none !important",
     defaultEnabled: true,
   },
