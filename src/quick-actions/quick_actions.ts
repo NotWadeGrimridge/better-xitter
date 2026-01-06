@@ -1,6 +1,6 @@
 /// <reference lib="dom" />
 
-import { isInHomeTimeline } from "../utils.ts";
+import { isInHomeTimeline } from "@/utils.ts";
 
 const BUTTON_CONTAINER_ID = "better-xitter-ocmb-buttons";
 const BUTTON_SIZE = 18;
@@ -245,7 +245,7 @@ async function handleNotInterested(tweet: HTMLElement): Promise<void> {
 }
 
 async function selectMenuItemByPath(targetPath: string): Promise<void> {
-  await wait(MENU_DELAY_MS);
+  await new Promise((resolve) => setTimeout(resolve, MENU_DELAY_MS));
   const items = document.querySelectorAll<HTMLElement>('div[role="menuitem"]');
 
   for (const item of items) {
@@ -258,7 +258,7 @@ async function selectMenuItemByPath(targetPath: string): Promise<void> {
 }
 
 async function confirmBlock(): Promise<void> {
-  await wait(MENU_DELAY_MS);
+  await new Promise((resolve) => setTimeout(resolve, MENU_DELAY_MS));
   const confirmButton = document.querySelector<HTMLButtonElement>(
     '[data-testid="confirmationSheetConfirm"]',
   );
@@ -272,8 +272,4 @@ function closePremiumModal(): void {
     );
     closeButton?.click();
   }, PROMO_CLOSE_DELAY_MS);
-}
-
-function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }

@@ -1,5 +1,7 @@
 /// <reference lib="dom" />
 
+import { getPath } from "@/utils.ts";
+
 (() => {
   const hookFlag = "__betterXitterHomeTimelineXhrHookInstalled";
   const homeTimelineGraphqlPath =
@@ -40,15 +42,10 @@
       ? urlArg.toString()
       : "";
 
-    let isHomeTimeline = false;
-    try {
-      isHomeTimeline = new URL(
-        url,
-        globalThis.location?.origin ?? "https://x.com",
-      ).pathname === homeTimelineGraphqlPath;
-    } catch {
-      // ignore
-    }
+    const isHomeTimeline = new URL(
+      url,
+      globalThis.location?.origin ?? "https://x.com",
+    ).pathname === homeTimelineGraphqlPath;
     if (isHomeTimeline && !this.__betterXitterHomeTimelineHooked) {
       this.__betterXitterHomeTimelineHooked = true;
       this.addEventListener("load", () => {
@@ -62,11 +59,7 @@
         }
 
         if (typeof payload === "string") {
-          try {
-            payload = JSON.parse(payload);
-          } catch {
-            return;
-          }
+          payload = JSON.parse(payload);
         }
 
         const pairs = extractAffiliationPairs(payload);
@@ -110,7 +103,7 @@
   });
 
   function extractAffiliationPairs(payload: unknown): Pair[] {
-    const instructions = get(payload, [
+    const instructions = getPath(payload, [
       "data",
       "home",
       "home_timeline_urt",
@@ -125,22 +118,26 @@
       if (!Array.isArray(entries)) continue;
 
       for (const entry of entries) {
-        const tweet =
-          get(entry, ["content", "itemContent", "tweet_results", "result"]) ??
-            get(entry, [
-              "content",
-              "items",
-              0,
-              "item",
-              "itemContent",
-              "tweet_results",
-              "result",
-            ]);
+        const tweet = getPath(entry, [
+          "content",
+          "itemContent",
+          "tweet_results",
+          "result",
+        ]) ??
+          getPath(entry, [
+            "content",
+            "items",
+            0,
+            "item",
+            "itemContent",
+            "tweet_results",
+            "result",
+          ]);
         if (!tweet) continue;
 
         collectPairsFromTweet(tweet, results);
 
-        const quotedTweet = get(tweet, ["quoted_status_result", "result"]);
+        const quotedTweet = getPath(tweet, ["quoted_status_result", "result"]);
         if (quotedTweet) collectPairsFromTweet(quotedTweet, results);
       }
     }
@@ -149,7 +146,7 @@
   }
 
   function collectPairsFromTweet(tweet: unknown, results: Pair[]): void {
-    const author = get(tweet, [
+    const author = getPath(tweet, [
       "core",
       "user_results",
       "result",
@@ -158,7 +155,7 @@
     ]);
     if (typeof author !== "string" || author.length === 0) return;
 
-    const affiliateUrl = get(tweet, [
+    const affiliateUrl = getPath(tweet, [
       "core",
       "user_results",
       "result",
@@ -177,44 +174,18 @@
     results.push([author.toLowerCase(), org.toLowerCase()]);
   }
 
-  type PathSegment = string | number;
-
-  function isRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === "object" && value !== null;
-  }
-
-  function get(value: unknown, path: readonly PathSegment[]): unknown {
-    let current: unknown = value;
-    for (const segment of path) {
-      if (typeof segment === "number") {
-        if (!Array.isArray(current)) return undefined;
-        current = current[segment];
-        continue;
-      }
-      if (!isRecord(current)) return undefined;
-      current = current[segment];
-    }
-    return current;
-  }
-
   function parseHandleFromProfileUrl(url: string): string | null {
-    try {
-      const parsed = new URL(url);
-      if (
-        parsed.hostname !== "x.com" &&
-        parsed.hostname !== "twitter.com" &&
-        parsed.hostname !== "www.x.com" &&
-        parsed.hostname !== "www.twitter.com"
-      ) {
-        return null;
-      }
-      let path = parsed.pathname;
-      while (path.startsWith("/")) path = path.slice(1);
-      const first = path.split("/")[0]?.trim();
-      if (!first) return null;
-      return first.startsWith("@") ? first.slice(1) : first;
-    } catch {
+    const parsed = new URL(url);
+    const hostname = parsed.hostname.startsWith("www.")
+      ? parsed.hostname.slice(4)
+      : parsed.hostname;
+    if (hostname !== "x.com" && hostname !== "twitter.com") {
       return null;
     }
+    let path = parsed.pathname;
+    while (path.startsWith("/")) path = path.slice(1);
+    const first = path.split("/")[0]?.trim();
+    if (!first) return null;
+    return first.startsWith("@") ? first.slice(1) : first;
   }
 })();

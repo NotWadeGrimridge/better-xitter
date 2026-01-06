@@ -1,13 +1,9 @@
 /// <reference lib="dom" />
 
+import { AffiliatesUser, isAffiliatesPathname } from "./shared.ts";
+
 const BUTTON_CONTAINER_ID = "better-xitter-affiliates-mute-buttons";
 const POPUP_ID = "better-xitter-affiliates-mute-popup";
-
-type AffiliatesUser = {
-  rest_id: string;
-  screen_name: string;
-  name?: string;
-};
 
 let messageHooked = false;
 let observer: MutationObserver | null = null;
@@ -84,11 +80,8 @@ function teardown(): void {
 }
 
 function isAffiliatesPage(): boolean {
-  let path = globalThis.location?.pathname ?? "";
-  while (path.startsWith("/")) path = path.slice(1);
-  while (path.endsWith("/")) path = path.slice(0, -1);
-  const segments = path.split("/").filter(Boolean);
-  return segments.length === 2 && segments[1] === "affiliates";
+  const pathname = globalThis.location?.pathname ?? "";
+  return isAffiliatesPathname(pathname);
 }
 
 function injectIfReady(): void {
@@ -361,7 +354,7 @@ async function muteOrUnmuteAll(
 
     // Keep a modest delay to reduce burstiness; also gets overridden by
     // server rate-limit headers when exhausted.
-    await sleep(100);
+    await new Promise((resolve) => setTimeout(resolve, 100));
   }
   if (onDone) {
     onDone(total);
@@ -373,10 +366,6 @@ type NetState = {
   ct0: string | null;
   transactionId: string;
 };
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 function getCookie(name: string): string | null {
   const match = `; ${document.cookie}`.match(`;\\s*${name}=([^;]+)`);
@@ -426,7 +415,7 @@ async function waitForRateLimit(response: Response): Promise<void> {
 
   let seconds = resetTs - Math.floor(Date.now() / 1000);
   while (seconds > 0) {
-    await sleep(1000);
+    await new Promise((resolve) => setTimeout(resolve, 1000));
     seconds = resetTs - Math.floor(Date.now() / 1000);
   }
 }

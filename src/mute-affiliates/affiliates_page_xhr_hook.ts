@@ -1,5 +1,8 @@
 /// <reference lib="dom" />
 
+import { AffiliatesUser, isAffiliatesPathname } from "./shared.ts";
+import { getPath } from "@/utils.ts";
+
 (() => {
   const hookFlag = "__betterXitterAffiliatesPageXhrHookInstalled";
   const teamTimelineGraphqlPath =
@@ -119,11 +122,7 @@
       xhr.addEventListener("load", () => {
         let payload: unknown = xhr.responseText;
         if (!payload) return;
-        try {
-          payload = JSON.parse(String(payload));
-        } catch {
-          return;
-        }
+        payload = JSON.parse(String(payload));
 
         const users = extractUsersFromTeamTimeline(payload);
         console.log("[better-xitter] affiliates users:", users);
@@ -145,85 +144,38 @@
     }
   }
 
-  function isAffiliatesPagePath(pathname: string): boolean {
-    let path = pathname;
-    while (path.startsWith("/")) path = path.slice(1);
-    while (path.endsWith("/")) path = path.slice(0, -1);
-    const segments = path.split("/").filter(Boolean);
-    return segments.length === 2 && segments[1] === "affiliates";
-  }
-
   function isTargetGraphqlRequest(url: string): boolean {
-    if (!isAffiliatesPagePath(globalThis.location?.pathname ?? "")) {
+    if (!isAffiliatesPathname(globalThis.location?.pathname ?? "")) {
       return false;
     }
-    try {
-      const parsed = new URL(
-        url,
-        globalThis.location?.origin ?? "https://x.com",
-      );
-      return parsed.pathname === teamTimelineGraphqlPath;
-    } catch {
-      return false;
-    }
+    const parsed = new URL(
+      url,
+      globalThis.location?.origin ?? "https://x.com",
+    );
+    return parsed.pathname === teamTimelineGraphqlPath;
   }
 
   function buildCountOverrideUrl(
     originalUrl: string,
     count: number,
   ): string | null {
-    try {
-      const url = new URL(
-        originalUrl,
-        globalThis.location?.origin ?? "https://x.com",
-      );
-      if (url.pathname !== teamTimelineGraphqlPath) return null;
+    const url = new URL(
+      originalUrl,
+      globalThis.location?.origin ?? "https://x.com",
+    );
+    if (url.pathname !== teamTimelineGraphqlPath) return null;
 
-      const variablesRaw = url.searchParams.get("variables");
-      if (!variablesRaw) return null;
+    const variablesRaw = url.searchParams.get("variables");
+    if (!variablesRaw) return null;
 
-      let variables: Record<string, unknown>;
-      try {
-        variables = JSON.parse(variablesRaw) as Record<string, unknown>;
-      } catch {
-        return null;
-      }
-      variables.count = count;
-      url.searchParams.set("variables", JSON.stringify(variables));
-      return url.toString();
-    } catch {
-      return null;
-    }
+    const variables = JSON.parse(variablesRaw) as Record<string, unknown>;
+    variables.count = count;
+    url.searchParams.set("variables", JSON.stringify(variables));
+    return url.toString();
   }
 
-  type PathSegment = string | number;
-
-  function isRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === "object" && value !== null;
-  }
-
-  function get(value: unknown, path: readonly PathSegment[]): unknown {
-    let current: unknown = value;
-    for (const segment of path) {
-      if (typeof segment === "number") {
-        if (!Array.isArray(current)) return undefined;
-        current = current[segment];
-        continue;
-      }
-      if (!isRecord(current)) return undefined;
-      current = current[segment];
-    }
-    return current;
-  }
-
-  function extractUsersFromTeamTimeline(payload: unknown): Array<{
-    rest_id: string;
-    screen_name: string;
-    name?: string;
-    avatar_url?: string;
-    affiliate_label_url?: string;
-  }> {
-    const instructions = get(payload, [
+  function extractUsersFromTeamTimeline(payload: unknown): AffiliatesUser[] {
+    const instructions = getPath(payload, [
       "data",
       "user",
       "result",
@@ -246,23 +198,23 @@
       if (!Array.isArray(entries)) continue;
 
       for (const entry of entries) {
-        const user = get(entry, [
+        const user = getPath(entry, [
           "content",
           "itemContent",
           "user_results",
           "result",
         ]);
-        if (!isRecord(user)) continue;
+        if (typeof user !== "object" || user === null) continue;
 
-        const rest_id = user.rest_id;
-        const screen_name = get(user, ["core", "screen_name"]);
+        const rest_id = (user as Record<string, unknown>).rest_id;
+        const screen_name = getPath(user, ["core", "screen_name"]);
         if (typeof rest_id !== "string" || typeof screen_name !== "string") {
           continue;
         }
 
-        const name = get(user, ["core", "name"]);
-        const avatar_url = get(user, ["avatar", "image_url"]);
-        const affiliate_label_url = get(user, [
+        const name = getPath(user, ["core", "name"]);
+        const avatar_url = getPath(user, ["avatar", "image_url"]);
+        const affiliate_label_url = getPath(user, [
           "affiliates_highlighted_label",
           "label",
           "url",

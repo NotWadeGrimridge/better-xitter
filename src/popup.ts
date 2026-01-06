@@ -10,7 +10,7 @@ import {
   type QuickActionPosition,
   setSettings,
   type Settings,
-} from "./options.ts";
+} from "@/options.ts";
 
 const affiliatedOrgsInputId = "input-hide-affiliated-org-tweets-orgs";
 const quickActionsToggleId = "toggle-quick-actions";
