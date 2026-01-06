@@ -22,12 +22,11 @@ export const optionHierarchy = [
         selector: `
           [data-testid="sidebarColumn"]
           :is(
-            div:has(> a[href="/i/premium_tier_switch"]),
-            div:has(> a[href="/i/premium_tier_switch"]) + div:empty,
-            div:has(> div > aside[aria-label="Subscribe to Premium"]),
-            div:has(> aside[role="complementary"] a[href^="/i/premium_sign_up"]),
-            div:has(> div > div[data-testid="super-upsell-UpsellCardRenderProperties"])
-          )
+            div:has(> div > aside[role="complementary"] a[href^="/i/premium_sign_up"]),
+            div:has(> div > aside[role="complementary"] a[href^="/i/premium_sign_up"]) + div:empty
+          ),
+          [data-testid="sidebarColumn"]
+          div:has(> div > div[data-testid="super-upsell-UpsellCardRenderProperties"])
         `,
         rule: "display: none !important",
         defaultEnabled: true,
