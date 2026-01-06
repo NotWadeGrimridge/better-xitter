@@ -118,7 +118,10 @@ export const optionHierarchy = [
   {
     id: "hideGrokButton",
     label: "Hide Grok button in posts",
-    selector: 'article[data-testid="tweet"] button[aria-label="Grok actions"]',
+    selector: `
+      article[data-testid="tweet"]
+      div:has(> button[aria-label="Grok actions"])
+    `,
     rule: "display: none !important",
     defaultEnabled: true,
   },

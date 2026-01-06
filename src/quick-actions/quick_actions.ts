@@ -105,9 +105,6 @@ function injectButtons(tweet: HTMLElement): void {
   buttonRow.style.alignItems = "center";
   buttonRow.style.gap = `${BUTTON_GAP}px`;
   buttonRow.style.paddingLeft = `${BUTTON_LEFT_PADDING}px`;
-  buttonRow.style.marginRight = currentConfig.position === "right"
-    ? `${BUTTON_GAP}px`
-    : "0";
 
   const muteButton = buildActionButton({
     title: "Mute",
@@ -142,9 +139,14 @@ function placeButtons(
   if (position === "right") {
     const target = nameContainer.parentElement?.parentElement
       ?.nextElementSibling;
-    const targetColumn = target?.firstElementChild;
-    if (targetColumn?.firstElementChild) {
-      targetColumn.firstElementChild.prepend(buttonRow);
+    const targetColumn = target?.firstElementChild as HTMLElement | null;
+    if (targetColumn) {
+      const firstElement = targetColumn.firstElementChild;
+      if (firstElement) {
+        targetColumn.insertBefore(buttonRow, firstElement);
+      } else {
+        targetColumn.append(buttonRow);
+      }
       return;
     }
   }
