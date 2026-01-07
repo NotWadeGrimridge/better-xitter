@@ -22,11 +22,17 @@ export type QuickMuteBlockPosition = "left" | "right";
 export type QuickMuteBlockConfig = {
   enabled: boolean;
   position: QuickMuteBlockPosition;
+  showMute: boolean;
+  showBlock: boolean;
+  showNotInterested: boolean;
 };
 
 let currentConfig: QuickMuteBlockConfig = {
   enabled: true,
   position: "right",
+  showMute: true,
+  showBlock: true,
+  showNotInterested: true,
 };
 
 let observer: MutationObserver | null = null;
@@ -106,18 +112,7 @@ function injectButtons(tweet: HTMLElement): void {
   buttonRow.style.gap = `${BUTTON_GAP}px`;
   buttonRow.style.paddingLeft = `${BUTTON_LEFT_PADDING}px`;
 
-  const muteButton = buildActionButton({
-    title: "Mute",
-    path: MUTE_PATH,
-    onClick: () => handleMute(tweet),
-  });
-  const blockButton = buildActionButton({
-    title: "Block",
-    path: BLOCK_PATH,
-    onClick: () => handleBlock(tweet),
-  });
-
-  if (isInHomeTimeline(tweet)) {
+  if (currentConfig.showNotInterested && isInHomeTimeline(tweet)) {
     const notInterestedButton = buildActionButton({
       title: "Not interested",
       path: NOT_INTERESTED_IN_POST_PATH,
@@ -126,7 +121,25 @@ function injectButtons(tweet: HTMLElement): void {
     buttonRow.append(notInterestedButton);
   }
 
-  buttonRow.append(muteButton, blockButton);
+  if (currentConfig.showMute) {
+    const muteButton = buildActionButton({
+      title: "Mute",
+      path: MUTE_PATH,
+      onClick: () => handleMute(tweet),
+    });
+    buttonRow.append(muteButton);
+  }
+
+  if (currentConfig.showBlock) {
+    const blockButton = buildActionButton({
+      title: "Block",
+      path: BLOCK_PATH,
+      onClick: () => handleBlock(tweet),
+    });
+    buttonRow.append(blockButton);
+  }
+
+  if (!buttonRow.firstChild) return;
 
   placeButtons(nameContainer, buttonRow, currentConfig.position);
 }

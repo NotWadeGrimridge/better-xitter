@@ -219,6 +219,9 @@ export type Settings = {
   [key: string]: boolean | QuickActionPosition | string;
   quickActionsEnabled: boolean;
   quickActionsPosition: QuickActionPosition;
+  quickActionsMuteEnabled: boolean;
+  quickActionsBlockEnabled: boolean;
+  quickActionsNotInterestedEnabled: boolean;
   hideAffiliatedOrgTweets: boolean;
   hideAffiliatedOrgTweetsOrgs: string;
   hideAffiliatedOrgQuoteTweets: boolean;
@@ -235,6 +238,9 @@ export const defaultSettings: Settings = {
   ...optionDefaults,
   quickActionsEnabled: true,
   quickActionsPosition: "right",
+  quickActionsMuteEnabled: true,
+  quickActionsBlockEnabled: true,
+  quickActionsNotInterestedEnabled: true,
   hideAffiliatedOrgTweets: false,
   hideAffiliatedOrgTweetsOrgs: "",
   hideAffiliatedOrgQuoteTweets: false,

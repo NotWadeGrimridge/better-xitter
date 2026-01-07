@@ -15,12 +15,50 @@ import {
 const affiliatedOrgsInputId = "input-hide-affiliated-org-tweets-orgs";
 const quickActionsToggleId = "toggle-quick-actions";
 const quickActionsPositionId = "select-quick-actions-position";
+const quickActionsMuteId = "toggle-quick-actions-mute";
+const quickActionsBlockId = "toggle-quick-actions-block";
+const quickActionsNotInterestedId = "toggle-quick-actions-not-interested";
 const leftSidebarOptionIds: Option["id"][] = [
   "hideNavigationLabels",
   "centerNavigation",
   "movePostButtonToCorner",
 ];
 const quickActionPositions: QuickActionPosition[] = ["left", "right"];
+
+type ChildControls = {
+  childCheckboxes: HTMLInputElement[];
+  childList: HTMLUListElement;
+};
+
+function setChildControls(
+  parentId: Option["id"],
+  parentChecked: boolean,
+  controls: ChildControls,
+): void {
+  const isHideRightSidebar = parentId === "hideRightSidebar";
+  const disabled = isHideRightSidebar ? parentChecked : !parentChecked;
+  const hidden = isHideRightSidebar ? false : !parentChecked;
+
+  for (const childCheckbox of controls.childCheckboxes) {
+    childCheckbox.disabled = disabled;
+  }
+  controls.childList.classList.toggle("is-disabled", disabled);
+  controls.childList.hidden = hidden;
+}
+
+function setQuickActionsChildrenEnabled(
+  enabled: boolean,
+  positionSelect: HTMLSelectElement,
+  childList: HTMLUListElement,
+  children: HTMLInputElement[],
+): void {
+  positionSelect.disabled = !enabled;
+  for (const input of children) {
+    input.disabled = !enabled;
+  }
+  childList.classList.toggle("is-disabled", !enabled);
+  childList.hidden = !enabled;
+}
 
 function buildToggle(
   option: Option,
@@ -52,10 +90,9 @@ function buildToggles(settings: Settings): {
   inputs: Map<Option["id"], HTMLInputElement>;
   quickActionsToggle: HTMLInputElement;
   quickActionsPosition: HTMLSelectElement;
-  childControls: Map<
-    Option["id"],
-    { childCheckboxes: HTMLInputElement[]; childList: HTMLUListElement }
-  >;
+  quickActionsChildList: HTMLUListElement;
+  quickActionsChildren: HTMLInputElement[];
+  childControls: Map<Option["id"], ChildControls>;
 } {
   const root = document.getElementById("root");
   if (!root) throw new Error("Popup root missing");
@@ -63,10 +100,7 @@ function buildToggles(settings: Settings): {
 
   const list = document.createElement("ul");
   const inputs = new Map<Option["id"], HTMLInputElement>();
-  const childControls = new Map<
-    Option["id"],
-    { childCheckboxes: HTMLInputElement[]; childList: HTMLUListElement }
-  >();
+  const childControls = new Map<Option["id"], ChildControls>();
 
   const appendOptionNode = (
     option: Option,
@@ -116,20 +150,13 @@ function buildToggles(settings: Settings): {
         childCheckboxes.push(appendOptionNode(child as Option, childList));
       }
 
-      if (option.id === "hideRightSidebar") {
-        const setChildrenDisabled = (disabled: boolean): void => {
-          for (const childCheckbox of childCheckboxes) {
-            childCheckbox.disabled = disabled;
-          }
-          childList.classList.toggle("is-disabled", disabled);
-          childList.hidden = false;
-        };
+      const controls: ChildControls = { childCheckboxes, childList };
 
-        setChildrenDisabled(checkbox.checked);
-        checkbox.addEventListener(
-          "change",
-          () => setChildrenDisabled(checkbox.checked),
-        );
+      if (option.id === "hideRightSidebar") {
+        setChildControls(option.id, checkbox.checked, controls);
+        checkbox.addEventListener("change", () => {
+          setChildControls(option.id, checkbox.checked, controls);
+        });
 
         const details = document.createElement("details");
         const summary = document.createElement("summary");
@@ -145,24 +172,15 @@ function buildToggles(settings: Settings): {
         details.append(container);
         item.append(details);
       } else {
-        const setChildrenEnabled = (enabled: boolean): void => {
-          for (const childCheckbox of childCheckboxes) {
-            childCheckbox.disabled = !enabled;
-          }
-          childList.classList.toggle("is-disabled", !enabled);
-          childList.hidden = !enabled;
-        };
-
-        setChildrenEnabled(checkbox.checked);
-        checkbox.addEventListener(
-          "change",
-          () => setChildrenEnabled(checkbox.checked),
-        );
+        setChildControls(option.id, checkbox.checked, controls);
+        checkbox.addEventListener("change", () => {
+          setChildControls(option.id, checkbox.checked, controls);
+        });
 
         item.append(childList);
       }
 
-      childControls.set(option.id, { childCheckboxes, childList });
+      childControls.set(option.id, controls);
     }
 
     return checkbox;
@@ -213,20 +231,12 @@ function buildToggles(settings: Settings): {
   const quickActionsPosition = document.createElement("select");
   quickActionsPosition.id = quickActionsPositionId;
 
-  quickActionsToggle.addEventListener("change", () => {
-    setSettings({ quickActionsEnabled: quickActionsToggle.checked });
-    quickActionsPosition.disabled = !quickActionsToggle.checked;
-  });
-
   const quickActionsLabel = document.createElement("label");
   quickActionsLabel.htmlFor = quickActionsToggleId;
   quickActionsLabel.append(
     quickActionsToggle,
     document.createTextNode(" Enable quick action buttons"),
   );
-
-  const quickActionsToggleItem = document.createElement("li");
-  quickActionsToggleItem.append(quickActionsLabel);
 
   for (const position of quickActionPositions) {
     const optionElement = document.createElement("option");
@@ -253,6 +263,103 @@ function buildToggles(settings: Settings): {
   );
   quickActionsPositionItem.append(quickActionsPositionLabel);
 
+  const quickActionsChildList = document.createElement("ul");
+  quickActionsChildList.classList.add("child-list");
+
+  const quickActionsChildren: HTMLInputElement[] = [];
+
+  const quickActionsMute = document.createElement("input");
+  quickActionsMute.type = "checkbox";
+  quickActionsMute.id = quickActionsMuteId;
+  quickActionsMute.checked = Boolean(settings.quickActionsMuteEnabled);
+  quickActionsMute.addEventListener("change", () => {
+    setSettings({ quickActionsMuteEnabled: quickActionsMute.checked });
+  });
+  const quickActionsMuteLabel = document.createElement("label");
+  quickActionsMuteLabel.htmlFor = quickActionsMuteId;
+  quickActionsMuteLabel.append(
+    quickActionsMute,
+    document.createTextNode(" Mute"),
+  );
+  const quickActionsMuteItem = document.createElement("li");
+  quickActionsMuteItem.append(quickActionsMuteLabel);
+  quickActionsChildList.append(quickActionsMuteItem);
+  quickActionsChildren.push(quickActionsMute);
+
+  const quickActionsBlock = document.createElement("input");
+  quickActionsBlock.type = "checkbox";
+  quickActionsBlock.id = quickActionsBlockId;
+  quickActionsBlock.checked = Boolean(settings.quickActionsBlockEnabled);
+  quickActionsBlock.addEventListener("change", () => {
+    setSettings({ quickActionsBlockEnabled: quickActionsBlock.checked });
+  });
+  const quickActionsBlockLabel = document.createElement("label");
+  quickActionsBlockLabel.htmlFor = quickActionsBlockId;
+  quickActionsBlockLabel.append(
+    quickActionsBlock,
+    document.createTextNode(" Block"),
+  );
+  const quickActionsBlockItem = document.createElement("li");
+  quickActionsBlockItem.append(quickActionsBlockLabel);
+  quickActionsChildList.append(quickActionsBlockItem);
+  quickActionsChildren.push(quickActionsBlock);
+
+  const quickActionsNotInterested = document.createElement("input");
+  quickActionsNotInterested.type = "checkbox";
+  quickActionsNotInterested.id = quickActionsNotInterestedId;
+  quickActionsNotInterested.checked = Boolean(
+    settings.quickActionsNotInterestedEnabled,
+  );
+  quickActionsNotInterested.addEventListener("change", () => {
+    setSettings({
+      quickActionsNotInterestedEnabled: quickActionsNotInterested.checked,
+    });
+  });
+  const quickActionsNotInterestedLabel = document.createElement("label");
+  quickActionsNotInterestedLabel.htmlFor = quickActionsNotInterestedId;
+  quickActionsNotInterestedLabel.append(
+    quickActionsNotInterested,
+    document.createTextNode(" Not interested"),
+  );
+  const quickActionsNotInterestedItem = document.createElement("li");
+  quickActionsNotInterestedItem.append(quickActionsNotInterestedLabel);
+
+  quickActionsChildList.append(
+    quickActionsPositionItem,
+    quickActionsNotInterestedItem,
+    quickActionsMuteItem,
+    quickActionsBlockItem,
+  );
+  quickActionsChildren.push(quickActionsNotInterested);
+  setQuickActionsChildrenEnabled(
+    settings.quickActionsEnabled,
+    quickActionsPosition,
+    quickActionsChildList,
+    quickActionsChildren,
+  );
+
+  quickActionsToggle.addEventListener("change", () => {
+    const enabled = quickActionsToggle.checked;
+    setSettings({ quickActionsEnabled: enabled });
+    setQuickActionsChildrenEnabled(
+      enabled,
+      quickActionsPosition,
+      quickActionsChildList,
+      quickActionsChildren,
+    );
+  });
+
+  const quickActionsContainer = document.createElement("div");
+  quickActionsContainer.append(quickActionsLabel, quickActionsChildList);
+
+  const quickActionsDetails = document.createElement("details");
+  const quickActionsSummary = document.createElement("summary");
+  quickActionsSummary.append(document.createTextNode("Quick actions"));
+  quickActionsDetails.append(quickActionsSummary, quickActionsContainer);
+
+  const quickActionsWrapper = document.createElement("li");
+  quickActionsWrapper.append(quickActionsDetails);
+
   const nonSidebarItem = Array.from(list.children).find((element) => {
     const li = element as HTMLLIElement;
     const id = li.dataset.optionId as Option["id"] | undefined;
@@ -263,10 +370,9 @@ function buildToggles(settings: Settings): {
   }) as HTMLLIElement | undefined;
 
   if (nonSidebarItem) {
-    list.insertBefore(quickActionsToggleItem, nonSidebarItem);
-    list.insertBefore(quickActionsPositionItem, nonSidebarItem);
+    list.insertBefore(quickActionsWrapper, nonSidebarItem);
   } else {
-    list.append(quickActionsToggleItem, quickActionsPositionItem);
+    list.append(quickActionsWrapper);
   }
 
   root.append(list);
@@ -274,6 +380,8 @@ function buildToggles(settings: Settings): {
     inputs,
     quickActionsToggle,
     quickActionsPosition,
+    quickActionsChildList,
+    quickActionsChildren,
     childControls,
   };
 }
@@ -282,10 +390,9 @@ function watchStorageUpdates(
   inputs: Map<Option["id"], HTMLInputElement>,
   quickActionsToggle: HTMLInputElement,
   quickActionsPosition: HTMLSelectElement,
-  childControls: Map<
-    Option["id"],
-    { childCheckboxes: HTMLInputElement[]; childList: HTMLUListElement }
-  >,
+  quickActionsChildList: HTMLUListElement,
+  quickActionsChildren: HTMLInputElement[],
+  childControls: Map<Option["id"], ChildControls>,
 ): void {
   const listener = (
     changes: Record<string, chrome.storage.StorageChange>,
@@ -304,23 +411,7 @@ function watchStorageUpdates(
     for (const [parentId, controls] of childControls.entries()) {
       const parent = inputs.get(parentId);
       if (!parent) continue;
-      const isHideRightSidebar = parentId === "hideRightSidebar";
-      const enabled = parent.checked;
-
-      if (isHideRightSidebar) {
-        const disabled = enabled;
-        for (const childCheckbox of controls.childCheckboxes) {
-          childCheckbox.disabled = disabled;
-        }
-        controls.childList.classList.toggle("is-disabled", disabled);
-        controls.childList.hidden = false;
-      } else {
-        for (const childCheckbox of controls.childCheckboxes) {
-          childCheckbox.disabled = !enabled;
-        }
-        controls.childList.classList.toggle("is-disabled", !enabled);
-        controls.childList.hidden = !enabled;
-      }
+      setChildControls(parentId, parent.checked, controls);
     }
 
     const quickActionsEnabled = changes.quickActionsEnabled;
@@ -328,7 +419,13 @@ function watchStorageUpdates(
       quickActionsToggle.checked = Boolean(
         quickActionsEnabled.newValue ?? defaultSettings.quickActionsEnabled,
       );
-      quickActionsPosition.disabled = !quickActionsToggle.checked;
+      const enabled = quickActionsToggle.checked;
+      setQuickActionsChildrenEnabled(
+        enabled,
+        quickActionsPosition,
+        quickActionsChildList,
+        quickActionsChildren,
+      );
     }
 
     const quickActionsPositionChange = changes.quickActionsPosition;
@@ -336,6 +433,46 @@ function watchStorageUpdates(
       const value = (quickActionsPositionChange.newValue ??
         defaultSettings.quickActionsPosition) as QuickActionPosition;
       quickActionsPosition.value = value;
+    }
+
+    const quickActionsMuteChange = changes.quickActionsMuteEnabled;
+    if (quickActionsMuteChange) {
+      const input = document.getElementById(
+        quickActionsMuteId,
+      ) as HTMLInputElement | null;
+      if (input) {
+        input.checked = Boolean(
+          quickActionsMuteChange.newValue ??
+            defaultSettings.quickActionsMuteEnabled,
+        );
+      }
+    }
+
+    const quickActionsBlockChange = changes.quickActionsBlockEnabled;
+    if (quickActionsBlockChange) {
+      const input = document.getElementById(
+        quickActionsBlockId,
+      ) as HTMLInputElement | null;
+      if (input) {
+        input.checked = Boolean(
+          quickActionsBlockChange.newValue ??
+            defaultSettings.quickActionsBlockEnabled,
+        );
+      }
+    }
+
+    const quickActionsNotInterestedChange = changes
+      .quickActionsNotInterestedEnabled;
+    if (quickActionsNotInterestedChange) {
+      const input = document.getElementById(
+        quickActionsNotInterestedId,
+      ) as HTMLInputElement | null;
+      if (input) {
+        input.checked = Boolean(
+          quickActionsNotInterestedChange.newValue ??
+            defaultSettings.quickActionsNotInterestedEnabled,
+        );
+      }
     }
 
     const affiliatedOrgsChange = changes.hideAffiliatedOrgTweetsOrgs;
@@ -361,12 +498,16 @@ async function main(): Promise<void> {
     inputs,
     quickActionsToggle,
     quickActionsPosition,
+    quickActionsChildList,
+    quickActionsChildren,
     childControls,
   } = buildToggles(settings);
   watchStorageUpdates(
     inputs,
     quickActionsToggle,
     quickActionsPosition,
+    quickActionsChildList,
+    quickActionsChildren,
     childControls,
   );
 }

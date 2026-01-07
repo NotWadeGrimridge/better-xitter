@@ -151,6 +151,43 @@ function watchSettingChanges(settings: Settings): void {
       updated = true;
     }
 
+    const quickActionsMuteEnabledChange = changes.quickActionsMuteEnabled;
+    if (quickActionsMuteEnabledChange) {
+      current = {
+        ...current,
+        quickActionsMuteEnabled: Boolean(
+          quickActionsMuteEnabledChange.newValue ??
+            defaultSettings.quickActionsMuteEnabled,
+        ),
+      };
+      updated = true;
+    }
+
+    const quickActionsBlockEnabledChange = changes.quickActionsBlockEnabled;
+    if (quickActionsBlockEnabledChange) {
+      current = {
+        ...current,
+        quickActionsBlockEnabled: Boolean(
+          quickActionsBlockEnabledChange.newValue ??
+            defaultSettings.quickActionsBlockEnabled,
+        ),
+      };
+      updated = true;
+    }
+
+    const quickActionsNotInterestedEnabledChange = changes
+      .quickActionsNotInterestedEnabled;
+    if (quickActionsNotInterestedEnabledChange) {
+      current = {
+        ...current,
+        quickActionsNotInterestedEnabled: Boolean(
+          quickActionsNotInterestedEnabledChange.newValue ??
+            defaultSettings.quickActionsNotInterestedEnabled,
+        ),
+      };
+      updated = true;
+    }
+
     const quickActionsEnabledChange = changes.quickActionsEnabled;
     if (quickActionsEnabledChange) {
       current = {
@@ -243,6 +280,9 @@ function watchSettingChanges(settings: Settings): void {
       configureQuickMuteBlock({
         enabled: current.quickActionsEnabled,
         position: current.quickActionsPosition,
+        showMute: Boolean(current.quickActionsMuteEnabled),
+        showBlock: Boolean(current.quickActionsBlockEnabled),
+        showNotInterested: Boolean(current.quickActionsNotInterestedEnabled),
       });
     }
   };
@@ -257,6 +297,9 @@ async function main(): Promise<void> {
   configureQuickMuteBlock({
     enabled: settings.quickActionsEnabled,
     position: settings.quickActionsPosition,
+    showMute: Boolean(settings.quickActionsMuteEnabled),
+    showBlock: Boolean(settings.quickActionsBlockEnabled),
+    showNotInterested: Boolean(settings.quickActionsNotInterestedEnabled),
   });
   updateLiveOnXVisibility(Boolean(settings.hideLiveOnX));
 
