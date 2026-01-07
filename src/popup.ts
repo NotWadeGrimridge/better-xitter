@@ -18,10 +18,31 @@ const quickActionsPositionId = "select-quick-actions-position";
 const quickActionsMuteId = "toggle-quick-actions-mute";
 const quickActionsBlockId = "toggle-quick-actions-block";
 const quickActionsNotInterestedId = "toggle-quick-actions-not-interested";
+const rightSidebarOptionIds: Option["id"][] = [
+  "hideOffers",
+  "hideTrending",
+  "hideLiveOnX",
+  "hideNews",
+  "hideWhoToFollow",
+  "hideFooter",
+];
 const leftSidebarOptionIds: Option["id"][] = [
   "hideNavigationLabels",
   "centerNavigation",
   "movePostButtonToCorner",
+];
+const declutterOptionIds: Option["id"][] = [
+  "hideNewPostsBanner",
+  "hideTimelineSideBorders",
+  "hidePromotedPosts",
+  "hideGrokButton",
+  "hideGrokDrawer",
+  "hideChatDrawer",
+];
+const featureOptionIds: Option["id"][] = [
+  "showTweetClientInfo",
+  "showTweetLocationInfo",
+  "hideAffiliatedOrgTweets",
 ];
 const quickActionPositions: QuickActionPosition[] = ["left", "right"];
 
@@ -31,13 +52,11 @@ type ChildControls = {
 };
 
 function setChildControls(
-  parentId: Option["id"],
   parentChecked: boolean,
   controls: ChildControls,
 ): void {
-  const isHideRightSidebar = parentId === "hideRightSidebar";
-  const disabled = isHideRightSidebar ? parentChecked : !parentChecked;
-  const hidden = isHideRightSidebar ? false : !parentChecked;
+  const disabled = !parentChecked;
+  const hidden = !parentChecked;
 
   for (const childCheckbox of controls.childCheckboxes) {
     childCheckbox.disabled = disabled;
@@ -152,33 +171,12 @@ function buildToggles(settings: Settings): {
 
       const controls: ChildControls = { childCheckboxes, childList };
 
-      if (option.id === "hideRightSidebar") {
-        setChildControls(option.id, checkbox.checked, controls);
-        checkbox.addEventListener("change", () => {
-          setChildControls(option.id, checkbox.checked, controls);
-        });
+      setChildControls(checkbox.checked, controls);
+      checkbox.addEventListener("change", () => {
+        setChildControls(checkbox.checked, controls);
+      });
 
-        const details = document.createElement("details");
-        const summary = document.createElement("summary");
-        summary.append(document.createTextNode("Right sidebar"));
-        details.append(summary);
-
-        const container = document.createElement("div");
-        while (item.firstChild) {
-          container.append(item.firstChild);
-        }
-        container.append(childList);
-
-        details.append(container);
-        item.append(details);
-      } else {
-        setChildControls(option.id, checkbox.checked, controls);
-        checkbox.addEventListener("change", () => {
-          setChildControls(option.id, checkbox.checked, controls);
-        });
-
-        item.append(childList);
-      }
+      item.append(childList);
 
       childControls.set(option.id, controls);
     }
@@ -188,39 +186,6 @@ function buildToggles(settings: Settings): {
 
   for (const option of optionHierarchy as readonly Option[]) {
     appendOptionNode(option, list);
-  }
-
-  const leftItems: HTMLLIElement[] = [];
-  for (const optionId of leftSidebarOptionIds) {
-    const element = list.querySelector(
-      `li[data-option-id="${optionId}"]`,
-    ) as HTMLLIElement | null;
-    if (element) {
-      leftItems.push(element);
-    }
-  }
-
-  if (leftItems.length) {
-    const details = document.createElement("details");
-    const summary = document.createElement("summary");
-    summary.append(document.createTextNode("Left sidebar"));
-    details.append(summary);
-
-    const container = document.createElement("div");
-    for (const item of leftItems) {
-      container.append(item);
-    }
-    details.append(container);
-
-    const wrapper = document.createElement("li");
-    wrapper.append(details);
-
-    const firstItem = list.querySelector("li");
-    if (firstItem) {
-      list.insertBefore(wrapper, firstItem);
-    } else {
-      list.append(wrapper);
-    }
   }
 
   const quickActionsToggle = document.createElement("input");
@@ -360,19 +325,81 @@ function buildToggles(settings: Settings): {
   const quickActionsWrapper = document.createElement("li");
   quickActionsWrapper.append(quickActionsDetails);
 
-  const nonSidebarItem = Array.from(list.children).find((element) => {
-    const li = element as HTMLLIElement;
-    const id = li.dataset.optionId as Option["id"] | undefined;
-    if (!id) return false;
-    if (id === "hideRightSidebar") return false;
-    if (leftSidebarOptionIds.includes(id)) return false;
-    return true;
-  }) as HTMLLIElement | undefined;
+  const sidebarDetails = document.createElement("details");
+  const sidebarSummary = document.createElement("summary");
+  sidebarSummary.append(document.createTextNode("Sidebar"));
+  sidebarDetails.append(sidebarSummary);
 
-  if (nonSidebarItem) {
-    list.insertBefore(quickActionsWrapper, nonSidebarItem);
-  } else {
-    list.append(quickActionsWrapper);
+  const sidebarContainer = document.createElement("div");
+  for (const optionId of rightSidebarOptionIds) {
+    const element = list.querySelector(
+      `li[data-option-id="${optionId}"]`,
+    ) as HTMLLIElement | null;
+    if (element) {
+      sidebarContainer.append(element);
+    }
+  }
+
+  const separator = document.createElement("hr");
+  sidebarContainer.append(separator);
+
+  let movePostItem: HTMLLIElement | undefined;
+  for (const optionId of leftSidebarOptionIds) {
+    const element = list.querySelector(
+      `li[data-option-id="${optionId}"]`,
+    ) as HTMLLIElement | null;
+    if (!element) continue;
+    if (optionId === "movePostButtonToCorner") {
+      movePostItem = element;
+    } else {
+      sidebarContainer.append(element);
+    }
+  }
+
+  if (movePostItem) {
+    sidebarContainer.append(movePostItem);
+  }
+
+  sidebarDetails.append(sidebarContainer);
+  const sidebarWrapper = document.createElement("li");
+  sidebarWrapper.append(sidebarDetails);
+
+  const declutterDetails = document.createElement("details");
+  const declutterSummary = document.createElement("summary");
+  declutterSummary.append(document.createTextNode("Declutter"));
+  declutterDetails.append(declutterSummary);
+
+  const declutterContainer = document.createElement("div");
+  for (const optionId of declutterOptionIds) {
+    const item = list.querySelector(
+      `li[data-option-id="${optionId}"]`,
+    ) as HTMLLIElement | null;
+    if (item) {
+      declutterContainer.append(item);
+    }
+  }
+
+  declutterDetails.append(declutterContainer);
+  const declutterWrapper = document.createElement("li");
+  declutterWrapper.append(declutterDetails);
+
+  const featureItems: HTMLLIElement[] = [];
+  for (const optionId of featureOptionIds) {
+    const item = list.querySelector(
+      `li[data-option-id="${optionId}"]`,
+    ) as HTMLLIElement | null;
+    if (item) {
+      featureItems.push(item);
+    }
+  }
+
+  while (list.firstChild) {
+    list.removeChild(list.firstChild);
+  }
+
+  list.append(declutterWrapper, sidebarWrapper, quickActionsWrapper);
+  for (const item of featureItems) {
+    list.append(item);
   }
 
   root.append(list);
@@ -411,7 +438,7 @@ function watchStorageUpdates(
     for (const [parentId, controls] of childControls.entries()) {
       const parent = inputs.get(parentId);
       if (!parent) continue;
-      setChildControls(parentId, parent.checked, controls);
+      setChildControls(parent.checked, controls);
     }
 
     const quickActionsEnabled = changes.quickActionsEnabled;

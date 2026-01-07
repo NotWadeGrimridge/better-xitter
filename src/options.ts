@@ -10,72 +10,63 @@ type OptionDefinition = {
 
 export const optionHierarchy = [
   {
-    id: "hideRightSidebar",
-    label: "Hide right sidebar",
-    selector: '[data-testid="sidebarColumn"]',
+    id: "hideOffers",
+    label: "Hide Premium nagging",
+    selector: `
+      [data-testid="sidebarColumn"]
+      :is(
+        div:has(> div > aside[role="complementary"] a[href^="/i/premium_sign_up"]),
+        div:has(> div > aside[role="complementary"] a[href^="/i/premium_sign_up"]) + div:empty
+      ),
+      [data-testid="sidebarColumn"]
+      div:has(> div > div[data-testid="super-upsell-UpsellCardRenderProperties"])
+    `,
     rule: "display: none !important",
-    defaultEnabled: false,
-    children: [
-      {
-        id: "hideOffers",
-        label: "Hide Premium nagging",
-        selector: `
-          [data-testid="sidebarColumn"]
-          :is(
-            div:has(> div > aside[role="complementary"] a[href^="/i/premium_sign_up"]),
-            div:has(> div > aside[role="complementary"] a[href^="/i/premium_sign_up"]) + div:empty
-          ),
-          [data-testid="sidebarColumn"]
-          div:has(> div > div[data-testid="super-upsell-UpsellCardRenderProperties"])
-        `,
-        rule: "display: none !important",
-        defaultEnabled: true,
-      },
-      {
-        id: "hideTrending",
-        label: 'Hide "What\'s Happening"',
-        selector: `
-          [data-testid="sidebarColumn"]
-          div:has(> section > div[aria-label="Timeline: Trending now"])
-        `,
-        rule: "display: none !important",
-        defaultEnabled: true,
-      },
-      {
-        id: "hideLiveOnX",
-        label: 'Hide "Live on X"',
-        selector: '[data-testid="sidebarColumn"]',
-        rule: "",
-        defaultEnabled: true,
-      },
-      {
-        id: "hideNews",
-        label: 'Hide "Today\'s News"',
-        selector: `
-          [data-testid="sidebarColumn"]
-          div:has(> [data-testid="news_sidebar"])
-        `,
-        rule: "display: none !important",
-        defaultEnabled: true,
-      },
-      {
-        id: "hideWhoToFollow",
-        label: 'Hide "Who to follow"',
-        selector: `
-          [data-testid="sidebarColumn"]
-          div:has(> div > :is(div, aside)[aria-label="Who to follow"])
-        `,
-        rule: "display: none !important",
-        defaultEnabled: true,
-      },
-      {
-        id: "hideFooter",
-        label: "Hide footer",
-        selector: '[data-testid="sidebarColumn"] [aria-label="Footer"]',
-        rule: "display: none !important",
-        defaultEnabled: true,
-      },
-    ],
+    defaultEnabled: true,
+  },
+  {
+    id: "hideTrending",
+    label: 'Hide "What\'s Happening"',
+    selector: `
+      [data-testid="sidebarColumn"]
+      div:has(> section > div[aria-label="Timeline: Trending now"])
+    `,
+    rule: "display: none !important",
+    defaultEnabled: true,
+  },
+  {
+    id: "hideLiveOnX",
+    label: 'Hide "Live on X"',
+    selector: '[data-testid="sidebarColumn"]',
+    rule: "",
+    defaultEnabled: true,
+  },
+  {
+    id: "hideNews",
+    label: 'Hide "Today\'s News"',
+    selector: `
+      [data-testid="sidebarColumn"]
+      div:has(> [data-testid="news_sidebar"])
+    `,
+    rule: "display: none !important",
+    defaultEnabled: true,
+  },
+  {
+    id: "hideWhoToFollow",
+    label: 'Hide "Who to follow"',
+    selector: `
+      [data-testid="sidebarColumn"]
+      div:has(> div > :is(div, aside)[aria-label="Who to follow"])
+    `,
+    rule: "display: none !important",
+    defaultEnabled: true,
+  },
+  {
+    id: "hideFooter",
+    label: "Hide footer",
+    selector: '[data-testid="sidebarColumn"] [aria-label="Footer"]',
+    rule: "display: none !important",
+    defaultEnabled: true,
   },
   {
     id: "showTweetClientInfo",
@@ -113,6 +104,13 @@ export const optionHierarchy = [
     selector:
       'button[aria-label="New posts are available. Push the period key to go to the them."]',
     rule: "display: none !important",
+    defaultEnabled: true,
+  },
+  {
+    id: "hideTimelineSideBorders",
+    label: "Hide side borders on timeline",
+    selector: '[data-testid="primaryColumn"]',
+    rule: "border-left-width: 0 !important; border-right-width: 0 !important;",
     defaultEnabled: true,
   },
   {
