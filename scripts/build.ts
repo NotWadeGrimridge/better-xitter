@@ -16,6 +16,7 @@ const entryPoints = [
   "background.ts",
   "hide-affiliates/home_timeline_xhr_hook.ts",
   "mute-affiliates/affiliates_page_xhr_hook.ts",
+  "client-info/tweet_client_info_page.ts",
 ];
 
 async function bundle(entry: string): Promise<void> {

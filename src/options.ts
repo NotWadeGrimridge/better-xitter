@@ -180,6 +180,14 @@ export const optionHierarchy = [
     `,
     defaultEnabled: true,
   },
+  {
+    id: "showTweetClientInfo",
+    label: "Show client info on tweets",
+    // Handled via JavaScript in content_script; CSS rule is a no-op placeholder.
+    selector: "body",
+    rule: "",
+    defaultEnabled: true,
+  },
 ];
 
 function flattenOptions(
@@ -211,6 +219,7 @@ export type Settings = {
   hideAffiliatedOrgTweets: boolean;
   hideAffiliatedOrgTweetsOrgs: string;
   hideAffiliatedOrgQuoteTweets: boolean;
+  showTweetClientInfo: boolean;
 };
 
 const optionDefaults = options.reduce(
@@ -225,6 +234,7 @@ export const defaultSettings: Settings = {
   hideAffiliatedOrgTweets: false,
   hideAffiliatedOrgTweetsOrgs: "",
   hideAffiliatedOrgQuoteTweets: false,
+  showTweetClientInfo: true,
 };
 
 const storage: chrome.storage.StorageArea = chrome.storage.sync;

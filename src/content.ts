@@ -10,6 +10,7 @@ import {
 import { configureQuickMuteBlock } from "@/quick-actions/quick_actions.ts";
 import { configureAffiliateHide } from "@/hide-affiliates/hide_affiliates.ts";
 import { configureAffiliatesMuteButtons } from "@/mute-affiliates/mute_affiliates.ts";
+import { configureTweetClientInfo } from "@/client-info/tweet_client_info.ts";
 const styleId = "better-xitter-style";
 const liveOnXDataAttribute = "data-better-xitter-live-on-x-hidden";
 let liveOnXObserver: MutationObserver | null = null;
@@ -258,6 +259,18 @@ async function main(): Promise<void> {
     position: settings.quickActionsPosition,
   });
   updateLiveOnXVisibility(Boolean(settings.hideLiveOnX));
+  if (settings.showTweetClientInfo) {
+    const url = chrome.runtime.getURL(
+      "client-info/tweet_client_info_page.js",
+    );
+    const script = document.createElement("script");
+    script.src = url;
+    script.type = "text/javascript";
+    const parent = document.head ?? document.documentElement;
+    if (parent) parent.append(script);
+    script.remove();
+    configureTweetClientInfo();
+  }
   configureAffiliateHide(
     Boolean(settings.hideAffiliatedOrgTweets),
     settings.hideAffiliatedOrgTweetsOrgs,
