@@ -259,6 +259,31 @@ async function main(): Promise<void> {
     position: settings.quickActionsPosition,
   });
   updateLiveOnXVisibility(Boolean(settings.hideLiveOnX));
+
+  {
+    const url = chrome.runtime.getURL(
+      "hide-affiliates/home_timeline_xhr_hook.js",
+    );
+    const script = document.createElement("script");
+    script.src = url;
+    script.type = "text/javascript";
+    const parent = document.head ?? document.documentElement;
+    if (parent) parent.append(script);
+    script.remove();
+  }
+
+  {
+    const url = chrome.runtime.getURL(
+      "mute-affiliates/affiliates_page_xhr_hook.js",
+    );
+    const script = document.createElement("script");
+    script.src = url;
+    script.type = "text/javascript";
+    const parent = document.head ?? document.documentElement;
+    if (parent) parent.append(script);
+    script.remove();
+  }
+
   if (settings.showTweetClientInfo) {
     const url = chrome.runtime.getURL(
       "client-info/tweet_client_info_page.js",

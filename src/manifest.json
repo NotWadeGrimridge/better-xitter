@@ -12,7 +12,10 @@
   "content_scripts": [
     {
       "matches": [
-        "https://x.com/*"
+        "https://twitter.com/*",
+        "https://mobile.twitter.com/*",
+        "https://x.com/*",
+        "https://mobile.x.com/*"
       ],
       "js": [
         "content.js"
@@ -21,23 +24,26 @@
     }
   ],
   "permissions": [
-    "storage",
-    "scripting"
+    "storage"
   ],
   "host_permissions": [
-    "https://x.com/*"
+    "https://twitter.com/*",
+    "https://mobile.twitter.com/*",
+    "https://x.com/*",
+    "https://mobile.x.com/*"
   ],
-  "background": {
-    "service_worker": "background.js",
-    "type": "module"
-  },
   "web_accessible_resources": [
     {
       "matches": [
-        "https://x.com/*"
+        "https://twitter.com/*",
+        "https://mobile.twitter.com/*",
+        "https://x.com/*",
+        "https://mobile.x.com/*"
       ],
       "resources": [
-        "client-info/tweet_client_info_page.js"
+        "client-info/tweet_client_info_page.js",
+        "hide-affiliates/home_timeline_xhr_hook.js",
+        "mute-affiliates/affiliates_page_xhr_hook.js"
       ]
     }
   ]
