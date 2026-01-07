@@ -1,12 +1,19 @@
 /// <reference lib="dom" />
 
+import { fetchGraphqlJson } from "@/utils.ts";
+
 (() => {
   const win = globalThis as unknown as Window & {
-    __betterXitterTweetClientInfoInstalled?: boolean;
+    __betterXitterTweetInfoInstalled?: boolean;
   };
 
-  if (win.__betterXitterTweetClientInfoInstalled) return;
-  win.__betterXitterTweetClientInfoInstalled = true;
+  if (win.__betterXitterTweetInfoInstalled) return;
+  win.__betterXitterTweetInfoInstalled = true;
+
+  const accountLocationCache = new Map<
+    string,
+    { account_based_in: string; location_accurate: boolean }
+  >();
 
   function getReduxState(): Record<string, unknown> | null {
     const root = document.querySelector<HTMLElement>("#react-root");
@@ -64,7 +71,53 @@
     return id;
   }
 
-  function emitFocusedTweetClientInfo(): void {
+  async function getAccountLocation(
+    screenName: string,
+  ): Promise<{ account_based_in: string; location_accurate: boolean } | null> {
+    if (accountLocationCache.has(screenName)) {
+      return accountLocationCache.get(screenName) ?? null;
+    }
+
+    const variables = { screenName };
+    const url =
+      `/i/api/graphql/XRqGa7EeokUU5kppkh13EA/AboutAccountQuery?variables=${
+        encodeURIComponent(JSON.stringify(variables))
+      }`;
+
+    const body = await fetchGraphqlJson(url) as {
+      data?: {
+        user_result_by_screen_name?: {
+          result?: {
+            about_profile?: {
+              account_based_in?: string;
+              location_accurate?: boolean;
+            };
+          };
+        };
+      };
+    };
+
+    if (!body) return null;
+
+    const about = body.data?.user_result_by_screen_name?.result
+      ?.about_profile;
+    if (
+      !about ||
+      typeof about.account_based_in !== "string" ||
+      about.account_based_in.trim().length === 0
+    ) {
+      return null;
+    }
+
+    const value = {
+      account_based_in: about.account_based_in,
+      location_accurate: Boolean(about.location_accurate),
+    };
+    accountLocationCache.set(screenName, value);
+    return value;
+  }
+
+  async function emitFocusedTweetInfo(): Promise<void> {
     const tweetId = getFocusedTweetIdFromPath();
     if (!tweetId) return;
 
@@ -72,13 +125,26 @@
     if (!state) return;
 
     const entities = state.entities as
-      | { tweets?: { entities?: Record<string, unknown> } }
+      | {
+        tweets?: { entities?: Record<string, unknown> };
+      }
       | undefined;
     const tweetEntities = entities?.tweets?.entities;
     if (!tweetEntities) return;
 
     const info = tweetEntities[tweetId] as
-      | { source_name?: unknown }
+      | {
+        source_name?: unknown;
+        core?: {
+          user_results?: {
+            result?: {
+              core?: {
+                screen_name?: unknown;
+              };
+            };
+          };
+        };
+      }
       | undefined;
     if (!info) return;
 
@@ -87,18 +153,31 @@
       return;
     }
 
+    const path = win.location?.pathname ?? "";
+    const match = path.match(/^\/([^/]+)\/status\/\d+/);
+    const screenName = match ? match[1] : null;
+    let location:
+      | { account_based_in: string; location_accurate: boolean }
+      | null = null;
+
+    if (typeof screenName === "string" && screenName.length > 0) {
+      location = await getAccountLocation(screenName);
+    }
+
     win.postMessage(
       {
-        type: "better-xitter:tweet-client-info",
+        type: "better-xitter:tweet-info",
         tweetId,
         sourceName,
+        accountBasedIn: location?.account_based_in ?? null,
+        locationAccurate: location?.location_accurate ?? null,
       },
       "*",
     );
   }
 
   if (/^\/[^/]+\/status\/\d+/.test(win.location?.pathname ?? "")) {
-    emitFocusedTweetClientInfo();
+    void emitFocusedTweetInfo();
   }
 
   const root = document.body ?? document.documentElement;
@@ -108,7 +187,7 @@
     if (!/^\/[^/]+\/status\/\d+/.test(win.location?.pathname ?? "")) {
       return;
     }
-    emitFocusedTweetClientInfo();
+    void emitFocusedTweetInfo();
   });
 
   observer.observe(root, {

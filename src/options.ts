@@ -44,7 +44,6 @@ export const optionHierarchy = [
       {
         id: "hideLiveOnX",
         label: 'Hide "Live on X"',
-        // Handled via JavaScript in content_script; CSS rule is a no-op placeholder.
         selector: '[data-testid="sidebarColumn"]',
         rule: "",
         defaultEnabled: true,
@@ -79,9 +78,22 @@ export const optionHierarchy = [
     ],
   },
   {
+    id: "showTweetClientInfo",
+    label: "Show client on tweets",
+    selector: "body",
+    rule: "",
+    defaultEnabled: true,
+  },
+  {
+    id: "showTweetLocationInfo",
+    label: "Show country on tweets",
+    selector: "body",
+    rule: "",
+    defaultEnabled: true,
+  },
+  {
     id: "hideAffiliatedOrgTweets",
     label: "Hide affiliates of chosen orgs",
-    // Handled via JavaScript in content_script; CSS rule is a no-op placeholder.
     selector: "body",
     rule: "",
     defaultEnabled: false,
@@ -89,7 +101,6 @@ export const optionHierarchy = [
       {
         id: "hideAffiliatedOrgQuoteTweets",
         label: "Also hide quote-tweets of affiliates",
-        // Handled via JavaScript in content_script; CSS rule is a no-op placeholder.
         selector: "body",
         rule: "",
         defaultEnabled: false,
@@ -180,14 +191,6 @@ export const optionHierarchy = [
     `,
     defaultEnabled: true,
   },
-  {
-    id: "showTweetClientInfo",
-    label: "Show client info on tweets",
-    // Handled via JavaScript in content_script; CSS rule is a no-op placeholder.
-    selector: "body",
-    rule: "",
-    defaultEnabled: true,
-  },
 ];
 
 function flattenOptions(
@@ -220,6 +223,7 @@ export type Settings = {
   hideAffiliatedOrgTweetsOrgs: string;
   hideAffiliatedOrgQuoteTweets: boolean;
   showTweetClientInfo: boolean;
+  showTweetLocationInfo: boolean;
 };
 
 const optionDefaults = options.reduce(
@@ -235,6 +239,7 @@ export const defaultSettings: Settings = {
   hideAffiliatedOrgTweetsOrgs: "",
   hideAffiliatedOrgQuoteTweets: false,
   showTweetClientInfo: true,
+  showTweetLocationInfo: true,
 };
 
 const storage: chrome.storage.StorageArea = chrome.storage.sync;

@@ -41,7 +41,7 @@
         "https://mobile.x.com/*"
       ],
       "resources": [
-        "client-info/tweet_client_info_page.js",
+        "tweet-info/tweet_info_page.js",
         "hide-affiliates/home_timeline_xhr_hook.js",
         "mute-affiliates/affiliates_page_xhr_hook.js"
       ]

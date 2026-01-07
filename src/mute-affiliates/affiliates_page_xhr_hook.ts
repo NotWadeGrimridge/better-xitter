@@ -1,7 +1,7 @@
 /// <reference lib="dom" />
 
 import { AffiliatesUser, isAffiliatesPathname } from "./shared.ts";
-import { getPath } from "@/utils.ts";
+import { fetchGraphqlJson, getPath } from "@/utils.ts";
 
 (() => {
   const hookFlag = "__betterXitterAffiliatesPageXhrHookInstalled";
@@ -100,48 +100,24 @@ import { getPath } from "@/utils.ts";
     return originalOpen.apply(this, args);
   };
 
-  // Note: we deliberately do NOT override `XMLHttpRequest.prototype.send` or
-  // `setRequestHeader` so unrelated XHRs don't show this file as the initiator.
-
-  function replayTeamTimelineRequest(input: {
+  async function replayTeamTimelineRequest(input: {
     method: string;
     url: string;
     headers: HeaderPair[];
-  }): void {
-    try {
-      const xhr = new XMLHttpRequest();
-      xhr.open(input.method, input.url);
-      for (const [name, value] of input.headers) {
-        try {
-          xhr.setRequestHeader(name, value);
-        } catch {
-          // ignore invalid header sets
-        }
-      }
+  }): Promise<void> {
+    const payload = await fetchGraphqlJson(input.url);
+    if (!payload) return;
 
-      xhr.addEventListener("load", () => {
-        let payload: unknown = xhr.responseText;
-        if (!payload) return;
-        payload = JSON.parse(String(payload));
+    const users = extractUsersFromTeamTimeline(payload);
+    if (users.length === 0) return;
 
-        const users = extractUsersFromTeamTimeline(payload);
-        console.log("[better-xitter] affiliates users:", users);
-        globalThis.postMessage(
-          {
-            type: "better-xitter:affiliates-users",
-            users,
-          },
-          "*",
-        );
-      });
-
-      xhr.send();
-    } catch (error) {
-      console.warn(
-        "[better-xitter] Failed to replay affiliates request",
-        error,
-      );
-    }
+    globalThis.postMessage(
+      {
+        type: "better-xitter:affiliates-users",
+        users,
+      },
+      "*",
+    );
   }
 
   function isTargetGraphqlRequest(url: string): boolean {
