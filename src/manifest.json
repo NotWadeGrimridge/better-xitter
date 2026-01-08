@@ -2,12 +2,12 @@
   "manifest_version": 3,
   "name": "Better Xitter",
   "description": "Improve your x.com experience",
-  "version": "0.2",
+  "version": "0.3",
   "author": "WadeGrimridge",
   "homepage_url": "https://github.com/NotWadeGrimridge/better-xitter",
   "action": {
     "default_popup": "popup.html",
-    "default_title": "better-xitter settings"
+    "default_title": "Better Xitter settings"
   },
   "content_scripts": [
     {
