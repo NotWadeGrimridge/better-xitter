@@ -14,6 +14,7 @@ let popupTriggerButton: HTMLButtonElement | null = null;
 let popupCountEl: HTMLDivElement | null = null;
 let popupProgressEl: HTMLDivElement | null = null;
 let popupOutsideClickHandler: ((event: MouseEvent) => void) | null = null;
+let affiliatesReady = false;
 
 export function configureAffiliatesMuteButtons(enabled: boolean): void {
   teardown();
@@ -34,6 +35,7 @@ function ensureMessageHook(): void {
     if (data.type !== "better-xitter:affiliates-users") return;
     const users = data.users;
     if (!Array.isArray(users)) return;
+    affiliatesReady = true;
 
     const parsed: AffiliatesUser[] = [];
     for (const user of users) {
@@ -54,6 +56,8 @@ function ensureMessageHook(): void {
     latestUserIds = [...new Set(parsed.map((u) => u.rest_id))];
     injectIfReady();
   });
+
+  selfWindow.postMessage({ type: "better-xitter:affiliates-mute-ready" }, "*");
 }
 
 function ensureObserver(): void {
@@ -89,11 +93,13 @@ function injectIfReady(): void {
     teardownButtonsOnly();
     return;
   }
+  if (!affiliatesReady) return;
 
   const pathname = globalThis.location?.pathname ?? "";
   if (pathname !== lastSeenPathname) {
     lastSeenPathname = pathname;
     latestUserIds = [];
+    affiliatesReady = false;
     teardownButtonsOnly();
     teardownPopup();
   }

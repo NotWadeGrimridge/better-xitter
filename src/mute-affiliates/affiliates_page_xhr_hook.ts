@@ -13,6 +13,8 @@ import { fetchGraphqlJson, getPath } from "@/utils.ts";
   type HeaderPair = [string, string];
   const recordedHeaders = new WeakMap<XMLHttpRequest, HeaderPair[]>();
   let hasReplayedFirstRequest = false;
+  let lastUsers: AffiliatesUser[] = [];
+  let hasSeenResponse = false;
 
   const XHR = XMLHttpRequest.prototype as XMLHttpRequest & {
     __betterXitterAffiliatesHooked?: boolean;
@@ -98,6 +100,20 @@ import { fetchGraphqlJson, getPath } from "@/utils.ts";
     return originalOpen.apply(this, args);
   };
 
+  globalThis.addEventListener("message", (event: MessageEvent) => {
+    const data = event.data as Record<string, unknown> | null;
+    if (!data) return;
+    if (data.type !== "better-xitter:affiliates-mute-ready") return;
+    if (!hasSeenResponse) return;
+    globalThis.postMessage(
+      {
+        type: "better-xitter:affiliates-users",
+        users: lastUsers,
+      },
+      "*",
+    );
+  });
+
   async function replayTeamTimelineRequest(input: {
     method: string;
     url: string;
@@ -107,7 +123,8 @@ import { fetchGraphqlJson, getPath } from "@/utils.ts";
     if (!payload) return;
 
     const users = extractUsersFromTeamTimeline(payload);
-    if (users.length === 0) return;
+    lastUsers = users;
+    hasSeenResponse = true;
 
     globalThis.postMessage(
       {
