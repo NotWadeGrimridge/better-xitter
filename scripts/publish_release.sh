@@ -3,7 +3,8 @@ set -euo pipefail
 
 VERSION="$(jq -r '.version' src/manifest.json)"
 TAG="v${VERSION}"
-ZIP_PATH="dist/better-xitter-chrome.zip"
+CHROME_ZIP="dist/better-xitter-chrome.zip"
+FIREFOX_XPI="dist/better-xitter-firefox.xpi"
 
 rm -rf dist
 
@@ -13,9 +14,9 @@ git tag -f "${TAG}"
 git push -f origin "${TAG}"
 
 if gh release view "${TAG}" >/dev/null 2>&1; then
-  gh release upload "${TAG}" "${ZIP_PATH}" --clobber
+  gh release upload "${TAG}" "${CHROME_ZIP}" "${FIREFOX_XPI}" --clobber
 else
-  gh release create "${TAG}" "${ZIP_PATH}" \
+  gh release create "${TAG}" "${CHROME_ZIP}" "${FIREFOX_XPI}" \
     --title "${TAG}" \
     --notes ""
 fi

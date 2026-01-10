@@ -1,4 +1,4 @@
-better-xitter is a small, chrome-only extension for a better x/twitter experience, written with deno + typescript.
+better-xitter is a browser extension for a better x/twitter experience, written with deno + typescript.
 
 bundle via `deno task build` from `source/` into `dist/chrome/` (manifest + js + html). chrome extension types come from `npm:@types/chrome`.
 
