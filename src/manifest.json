@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Better Xitter",
   "description": "Improve your x.com experience",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "author": "WadeGrimridge",
   "homepage_url": "https://github.com/NotWadeGrimridge/better-xitter",
   "action": {
