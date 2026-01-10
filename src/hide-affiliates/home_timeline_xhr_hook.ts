@@ -4,8 +4,6 @@ import { getPath } from "@/utils.ts";
 
 (() => {
   const hookFlag = "__betterXitterHomeTimelineXhrHookInstalled";
-  const homeTimelineGraphqlPath =
-    "/i/api/graphql/edseUwk9sP5Phz__9TIRnA/HomeTimeline";
   const maxBufferedPairs = 5000;
 
   const win = globalThis as unknown as Record<string, unknown>;
@@ -42,10 +40,12 @@ import { getPath } from "@/utils.ts";
       ? urlArg.toString()
       : "";
 
-    const isHomeTimeline = new URL(
+    const pathname = new URL(
       url,
       globalThis.location?.origin ?? "https://x.com",
-    ).pathname === homeTimelineGraphqlPath;
+    ).pathname;
+    const isHomeTimeline = pathname.includes("/graphql/") &&
+      pathname.endsWith("/HomeTimeline");
     if (isHomeTimeline && !this.__betterXitterHomeTimelineHooked) {
       this.__betterXitterHomeTimelineHooked = true;
       this.addEventListener("load", () => {

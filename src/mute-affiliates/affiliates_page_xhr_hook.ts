@@ -5,8 +5,6 @@ import { fetchGraphqlJson, getPath } from "@/utils.ts";
 
 (() => {
   const hookFlag = "__betterXitterAffiliatesPageXhrHookInstalled";
-  const teamTimelineGraphqlPath =
-    "/i/api/graphql/WFHHTYX3ZGPBD_3G3nDuGw/UserBusinessProfileTeamTimeline";
 
   const win = globalThis as unknown as Record<string, unknown>;
   if (win[hookFlag] === true) return;
@@ -128,7 +126,9 @@ import { fetchGraphqlJson, getPath } from "@/utils.ts";
       url,
       globalThis.location?.origin ?? "https://x.com",
     );
-    return parsed.pathname === teamTimelineGraphqlPath;
+    const pathname = parsed.pathname;
+    return pathname.includes("/graphql/") &&
+      pathname.endsWith("/UserBusinessProfileTeamTimeline");
   }
 
   function buildCountOverrideUrl(
@@ -139,7 +139,10 @@ import { fetchGraphqlJson, getPath } from "@/utils.ts";
       originalUrl,
       globalThis.location?.origin ?? "https://x.com",
     );
-    if (url.pathname !== teamTimelineGraphqlPath) return null;
+    const pathname = url.pathname;
+    const isTeamTimelinePath = pathname.includes("/graphql/") &&
+      pathname.endsWith("/UserBusinessProfileTeamTimeline");
+    if (!isTeamTimelinePath) return null;
 
     const variablesRaw = url.searchParams.get("variables");
     if (!variablesRaw) return null;
