@@ -173,7 +173,7 @@ export const optionHierarchy = [
     id: "hideNavigationLabels",
     label: "Hide labels in left sidebar",
     rule: `
-      header[role="banner"] nav[role="navigation"] > * > div > div + div:last-child {
+      header[role="banner"] nav[role="navigation"] > * > div > div:not(:first-child) {
         display: none !important;
       }
       [data-testid="SideNav_AccountSwitcher_Button"] > div:not(:first-child) {
