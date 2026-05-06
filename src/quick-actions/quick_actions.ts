@@ -5,8 +5,6 @@ const FOLLOWER_BUTTON_CONTAINER_ID = "better-xitter-follower-buttons";
 const BUTTON_SIZE = 18;
 const ICON_COLOR = "rgb(113 118 123)";
 const BUTTON_GAP = 8;
-const BUTTON_PADDING = 0;
-const BUTTON_LEFT_PADDING = 8;
 const MENU_DELAY_MS = 100;
 const PROMO_CLOSE_DELAY_MS = 500;
 
@@ -49,13 +47,11 @@ export function configureQuickMuteBlock(config: QuickMuteBlockConfig): void {
     injectButtons(tweet);
   }
 
-  if (isInFollowersPage()) {
-    const userCells = document.querySelectorAll<HTMLElement>(
-      'button[data-testid="UserCell"]',
-    );
-    for (const userCell of userCells) {
-      injectFollowerButtons(userCell);
-    }
+  const userCells = document.querySelectorAll<HTMLElement>(
+    'button[data-testid="UserCell"]',
+  );
+  for (const userCell of userCells) {
+    injectFollowerButtons(userCell);
   }
 
   ensureObserver();
@@ -70,6 +66,8 @@ function ensureObserver(): void {
         continue;
       }
 
+      const isFollowers = isInFollowersPage();
+
       for (const node of mutation.addedNodes) {
         if (node.nodeType !== Node.ELEMENT_NODE) continue;
         const element = node as HTMLElement;
@@ -79,7 +77,7 @@ function ensureObserver(): void {
           continue;
         }
 
-        if (isInFollowersPage()) {
+        if (isFollowers) {
           if (element.matches('button[data-testid="UserCell"]')) {
             injectFollowerButtons(element);
           }
@@ -144,7 +142,7 @@ function injectButtons(tweet: HTMLElement): void {
   buttonRow.style.display = "flex";
   buttonRow.style.alignItems = "center";
   buttonRow.style.gap = `${BUTTON_GAP}px`;
-  buttonRow.style.paddingLeft = `${BUTTON_LEFT_PADDING}px`;
+  buttonRow.style.paddingLeft = "8px";
 
   if (currentConfig.showNotInterested && isInHomeTimeline(tweet)) {
     const notInterestedButton = buildActionButton({
@@ -271,7 +269,7 @@ function buildActionButton(config: ActionButtonConfig): HTMLButtonElement {
   button.style.justifyContent = "center";
   button.style.width = `${BUTTON_SIZE}px`;
   button.style.height = `${BUTTON_SIZE}px`;
-  button.style.padding = `${BUTTON_PADDING}px`;
+  button.style.padding = "0";
   button.style.background = "none";
   button.style.border = "none";
   button.style.borderRadius = "50%";
@@ -311,23 +309,23 @@ const USER_MENU_SELECTOR = '[aria-haspopup="menu"]';
 async function openMenuAndSelect(
   container: HTMLElement,
   menuSelector: string,
-  targetPath: string,
-  options?: { confirmSheet?: boolean; closePremium?: boolean },
+  label: string,
+  options?: { exact?: boolean; confirmSheet?: boolean; closePremium?: boolean },
 ): Promise<void> {
   const menuButton = container.querySelector<HTMLElement>(menuSelector);
   if (!menuButton) return;
   menuButton.click();
-  await selectMenuItemByPath(targetPath);
+  await selectMenuItemByLabel(label, options?.exact ?? false);
   if (options?.confirmSheet) await confirmSheetAction();
   if (options?.closePremium) closePremiumModal();
 }
 
 function handleMute(tweet: HTMLElement): Promise<void> {
-  return openMenuAndSelect(tweet, TWEET_MENU_SELECTOR, MUTE_PATH);
+  return openMenuAndSelect(tweet, TWEET_MENU_SELECTOR, "Mute");
 }
 
 function handleBlock(tweet: HTMLElement): Promise<void> {
-  return openMenuAndSelect(tweet, TWEET_MENU_SELECTOR, BLOCK_PATH, {
+  return openMenuAndSelect(tweet, TWEET_MENU_SELECTOR, "Block", {
     confirmSheet: true,
     closePremium: true,
   });
@@ -337,34 +335,38 @@ function handleNotInterested(tweet: HTMLElement): Promise<void> {
   return openMenuAndSelect(
     tweet,
     TWEET_MENU_SELECTOR,
-    NOT_INTERESTED_IN_POST_PATH,
+    "Not interested in this post",
+    { exact: true },
   );
 }
 
 function handleUserCellMute(userCell: HTMLElement): Promise<void> {
-  return openMenuAndSelect(userCell, USER_MENU_SELECTOR, MUTE_PATH);
+  return openMenuAndSelect(userCell, USER_MENU_SELECTOR, "Mute");
 }
 
 function handleUserCellBlock(userCell: HTMLElement): Promise<void> {
-  return openMenuAndSelect(userCell, USER_MENU_SELECTOR, BLOCK_PATH, {
+  return openMenuAndSelect(userCell, USER_MENU_SELECTOR, "Block", {
     confirmSheet: true,
     closePremium: true,
   });
 }
 
 function handleRemoveFollower(userCell: HTMLElement): Promise<void> {
-  return openMenuAndSelect(userCell, USER_MENU_SELECTOR, REMOVE_FOLLOWER_PATH, {
+  return openMenuAndSelect(userCell, USER_MENU_SELECTOR, "Remove", {
     confirmSheet: true,
   });
 }
 
-async function selectMenuItemByPath(targetPath: string): Promise<void> {
+async function selectMenuItemByLabel(
+  label: string,
+  exact: boolean,
+): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, MENU_DELAY_MS));
   const items = document.querySelectorAll<HTMLElement>('div[role="menuitem"]');
 
   for (const item of items) {
-    const path = item.querySelector("path");
-    if (path?.getAttribute("d") === targetPath) {
+    const text = item.textContent?.trim() ?? "";
+    if (exact ? text === label : text.startsWith(label)) {
       item.click();
       break;
     }
