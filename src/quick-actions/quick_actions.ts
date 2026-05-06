@@ -1,5 +1,3 @@
-/// <reference lib="dom" />
-
 import { isInHomeTimeline } from "@/utils.ts";
 
 const BUTTON_CONTAINER_ID = "better-xitter-ocmb-buttons";
@@ -123,13 +121,13 @@ function teardown(): void {
 }
 
 function isInFollowersPage(): boolean {
-  const pathname = globalThis.location?.pathname ?? "";
+  const pathname = location.pathname;
   const segments = pathname.split("/").filter(Boolean);
   if (segments.length < 2) return false;
 
-  const tab = segments[1];
-  return tab === "followers" || tab === "following" ||
-    tab === "verified_followers";
+  return ["followers", "following", "verified_followers"].includes(
+    segments[1],
+  );
 }
 
 function injectButtons(tweet: HTMLElement): void {
@@ -239,20 +237,14 @@ function placeButtons(
   if (position === "right") {
     const target = nameContainer.parentElement?.parentElement
       ?.nextElementSibling;
-    const targetColumn = target?.firstElementChild as HTMLElement | null;
+    const targetColumn = target?.firstElementChild;
     if (targetColumn) {
-      const firstElement = targetColumn.firstElementChild;
-      if (firstElement) {
-        targetColumn.insertBefore(buttonRow, firstElement);
-      } else {
-        targetColumn.append(buttonRow);
-      }
+      targetColumn.prepend(buttonRow);
       return;
     }
   }
 
-  const direction = globalThis
-    .getComputedStyle(nameContainer)
+  const direction = getComputedStyle(nameContainer)
     .getPropertyValue("flex-direction");
 
   const firstChild = nameContainer.firstElementChild;
@@ -313,70 +305,57 @@ function buildActionButton(config: ActionButtonConfig): HTMLButtonElement {
   return button;
 }
 
-async function handleUserCellMute(userCell: HTMLElement): Promise<void> {
-  const menuButton = userCell.querySelector<HTMLElement>(
-    '[aria-haspopup="menu"]',
-  );
-  if (!menuButton) return;
+const TWEET_MENU_SELECTOR = '[aria-haspopup="menu"][data-testid="caret"]';
+const USER_MENU_SELECTOR = '[aria-haspopup="menu"]';
 
+async function openMenuAndSelect(
+  container: HTMLElement,
+  menuSelector: string,
+  targetPath: string,
+  options?: { confirmSheet?: boolean; closePremium?: boolean },
+): Promise<void> {
+  const menuButton = container.querySelector<HTMLElement>(menuSelector);
+  if (!menuButton) return;
   menuButton.click();
-  await selectMenuItemByPath(MUTE_PATH);
+  await selectMenuItemByPath(targetPath);
+  if (options?.confirmSheet) await confirmSheetAction();
+  if (options?.closePremium) closePremiumModal();
 }
 
-async function handleUserCellBlock(userCell: HTMLElement): Promise<void> {
-  const menuButton = userCell.querySelector<HTMLElement>(
-    '[aria-haspopup="menu"]',
-  );
-  if (!menuButton) return;
-
-  menuButton.click();
-  await selectMenuItemByPath(BLOCK_PATH);
-  await confirmSheetAction();
-  closePremiumModal();
+function handleMute(tweet: HTMLElement): Promise<void> {
+  return openMenuAndSelect(tweet, TWEET_MENU_SELECTOR, MUTE_PATH);
 }
 
-async function handleRemoveFollower(userCell: HTMLElement): Promise<void> {
-  const menuButton = userCell.querySelector<HTMLElement>(
-    '[aria-haspopup="menu"]',
-  );
-  if (!menuButton) return;
-
-  menuButton.click();
-  await selectMenuItemByPath(REMOVE_FOLLOWER_PATH);
-  await confirmSheetAction();
+function handleBlock(tweet: HTMLElement): Promise<void> {
+  return openMenuAndSelect(tweet, TWEET_MENU_SELECTOR, BLOCK_PATH, {
+    confirmSheet: true,
+    closePremium: true,
+  });
 }
 
-async function handleMute(tweet: HTMLElement): Promise<void> {
-  const menuButton = tweet.querySelector<HTMLElement>(
-    '[aria-haspopup="menu"][data-testid="caret"]',
+function handleNotInterested(tweet: HTMLElement): Promise<void> {
+  return openMenuAndSelect(
+    tweet,
+    TWEET_MENU_SELECTOR,
+    NOT_INTERESTED_IN_POST_PATH,
   );
-  if (!menuButton) return;
-
-  menuButton.click();
-  await selectMenuItemByPath(MUTE_PATH);
 }
 
-async function handleBlock(tweet: HTMLElement): Promise<void> {
-  const menuButton = tweet.querySelector<HTMLElement>(
-    '[aria-haspopup="menu"][data-testid="caret"]',
-  );
-  if (!menuButton) return;
-
-  menuButton.click();
-  await selectMenuItemByPath(BLOCK_PATH);
-
-  await confirmSheetAction();
-  closePremiumModal();
+function handleUserCellMute(userCell: HTMLElement): Promise<void> {
+  return openMenuAndSelect(userCell, USER_MENU_SELECTOR, MUTE_PATH);
 }
 
-async function handleNotInterested(tweet: HTMLElement): Promise<void> {
-  const menuButton = tweet.querySelector<HTMLElement>(
-    '[aria-haspopup="menu"][data-testid="caret"]',
-  );
-  if (!menuButton) return;
+function handleUserCellBlock(userCell: HTMLElement): Promise<void> {
+  return openMenuAndSelect(userCell, USER_MENU_SELECTOR, BLOCK_PATH, {
+    confirmSheet: true,
+    closePremium: true,
+  });
+}
 
-  menuButton.click();
-  await selectMenuItemByPath(NOT_INTERESTED_IN_POST_PATH);
+function handleRemoveFollower(userCell: HTMLElement): Promise<void> {
+  return openMenuAndSelect(userCell, USER_MENU_SELECTOR, REMOVE_FOLLOWER_PATH, {
+    confirmSheet: true,
+  });
 }
 
 async function selectMenuItemByPath(targetPath: string): Promise<void> {

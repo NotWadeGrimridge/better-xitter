@@ -1,5 +1,3 @@
-/// <reference lib="dom" />
-
 function applyTweetSourceToPermalinkBar(
   bar: HTMLElement,
   sourceName: string,
@@ -66,10 +64,9 @@ function decorateTweetById(
   showClientInfo: boolean,
   showLocationInfo: boolean,
 ): void {
-  const win = globalThis as unknown as Window;
-  const path = win.location?.pathname ?? "";
+  const path = location.pathname;
 
-  if (!new RegExp(`^/[^/]+/status/${tweetId}(?:/|$)`).test(path)) {
+  if (!path.includes(`/status/${tweetId}`)) {
     return;
   }
 
@@ -112,9 +109,7 @@ function decorateTweetById(
     applyTweetSourceToPermalinkBar(bar, sourceName);
   }
 
-  if (
-    showLocationInfo && accountBasedIn && accountBasedIn.trim().length > 0
-  ) {
+  if (showLocationInfo && accountBasedIn?.trim()) {
     applyTweetLocationToPermalinkBar(
       bar,
       accountBasedIn,
@@ -127,11 +122,8 @@ export function configureTweetInfo(input: {
   showClientInfo: boolean;
   showLocationInfo: boolean;
 }): void {
-  const win = globalThis as unknown as Window;
-  const showClientInfo = Boolean(input.showClientInfo);
-  const showLocationInfo = Boolean(input.showLocationInfo);
-
-  win.addEventListener("message", (event: MessageEvent) => {
+  const { showClientInfo, showLocationInfo } = input;
+  addEventListener("message", (event: MessageEvent) => {
     const data = event.data as
       | {
         type?: unknown;

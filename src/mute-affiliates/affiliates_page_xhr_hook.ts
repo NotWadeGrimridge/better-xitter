@@ -1,34 +1,28 @@
-/// <reference lib="dom" />
-
 import { AffiliatesUser, isAffiliatesPathname } from "./shared.ts";
 import { fetchGraphqlJson, getPath } from "@/utils.ts";
 
 (() => {
   const hookFlag = "__betterXitterAffiliatesPageXhrHookInstalled";
 
-  const win = globalThis as unknown as Record<string, unknown>;
+  const win = window as unknown as Record<string, unknown>;
   if (win[hookFlag] === true) return;
   win[hookFlag] = true;
 
   type HeaderPair = [string, string];
+  const hookedXhrs = new WeakSet<XMLHttpRequest>();
+  const firstUrls = new WeakMap<XMLHttpRequest, string>();
+  const firstMethods = new WeakMap<XMLHttpRequest, string>();
   const recordedHeaders = new WeakMap<XMLHttpRequest, HeaderPair[]>();
   let hasReplayedFirstRequest = false;
   let lastUsers: AffiliatesUser[] = [];
   let hasSeenResponse = false;
 
-  const XHR = XMLHttpRequest.prototype as XMLHttpRequest & {
-    __betterXitterAffiliatesHooked?: boolean;
-    __betterXitterAffiliatesFirstUrl?: string;
-    __betterXitterAffiliatesFirstMethod?: string;
-  };
+  const XHR = XMLHttpRequest.prototype;
 
   const originalOpen = XHR.open as unknown as (
     this: XMLHttpRequest,
     ...args: unknown[]
   ) => void;
-
-  void XHR.setRequestHeader;
-  void XHR.send;
 
   XHR.open = function (this: XMLHttpRequest, ...args: unknown[]) {
     const urlArg = args[1];
@@ -39,49 +33,33 @@ import { fetchGraphqlJson, getPath } from "@/utils.ts";
       : "";
 
     if (!hasReplayedFirstRequest && isTargetGraphqlRequest(url)) {
-      const typed = this as typeof XHR & {
-        setRequestHeader: XMLHttpRequest["setRequestHeader"];
-        send: XMLHttpRequest["send"];
-      };
+      const xhr = this as XMLHttpRequest;
 
-      typed.__betterXitterAffiliatesHooked = true;
-      typed.__betterXitterAffiliatesFirstUrl = url;
+      hookedXhrs.add(xhr);
+      firstUrls.set(xhr, url);
       const methodArg = args[0];
-      typed.__betterXitterAffiliatesFirstMethod = typeof methodArg === "string"
-        ? methodArg
-        : "GET";
-      recordedHeaders.set(this, []);
+      firstMethods.set(xhr, typeof methodArg === "string" ? methodArg : "GET");
+      recordedHeaders.set(xhr, []);
 
-      const instanceOriginalSetRequestHeader = typed.setRequestHeader;
-      typed.setRequestHeader = function (
+      const instanceOriginalSetRequestHeader = xhr.setRequestHeader.bind(xhr);
+      const instanceOriginalSend = xhr.send.bind(xhr);
+
+      xhr.setRequestHeader = function (
         this: XMLHttpRequest,
-        ...headerArgs: unknown[]
-      ) {
-        const typedThis = this as typeof XHR;
-        if (
-          typedThis.__betterXitterAffiliatesHooked && headerArgs.length >= 2
-        ) {
-          const [nameArg, valueArg] = headerArgs;
-          if (typeof nameArg === "string" && typeof valueArg === "string") {
-            recordedHeaders.get(this)?.push([nameArg, valueArg]);
-          }
+        name: string,
+        value: string,
+      ): void {
+        if (hookedXhrs.has(this)) {
+          recordedHeaders.get(this)?.push([name, value]);
         }
-        return (instanceOriginalSetRequestHeader as unknown as (
-          this: XMLHttpRequest,
-          ...args: unknown[]
-        ) => void).apply(this, headerArgs);
+        return instanceOriginalSetRequestHeader(name, value);
       };
 
-      const instanceOriginalSend = typed.send;
-      typed.send = function (this: XMLHttpRequest, ...sendArgs: unknown[]) {
-        const sendTyped = this as typeof XHR;
-        if (
-          sendTyped.__betterXitterAffiliatesHooked && !hasReplayedFirstRequest
-        ) {
+      xhr.send = function (this: XMLHttpRequest, ...sendArgs: unknown[]): void {
+        if (hookedXhrs.has(this) && !hasReplayedFirstRequest) {
           hasReplayedFirstRequest = true;
-
-          const method = sendTyped.__betterXitterAffiliatesFirstMethod ?? "GET";
-          const firstUrl = sendTyped.__betterXitterAffiliatesFirstUrl ?? null;
+          const method = firstMethods.get(this) ?? "GET";
+          const firstUrl = firstUrls.get(this);
           const headers = recordedHeaders.get(this) ?? [];
           if (firstUrl) {
             const replayUrl = buildCountOverrideUrl(firstUrl, 1000);
@@ -90,22 +68,21 @@ import { fetchGraphqlJson, getPath } from "@/utils.ts";
             }
           }
         }
-        return (instanceOriginalSend as unknown as (
-          this: XMLHttpRequest,
-          ...args: unknown[]
-        ) => void).apply(this, sendArgs);
+        return (instanceOriginalSend as (...args: unknown[]) => void)(
+          ...sendArgs,
+        );
       };
     }
 
     return originalOpen.apply(this, args);
   };
 
-  globalThis.addEventListener("message", (event: MessageEvent) => {
+  addEventListener("message", (event: MessageEvent) => {
     const data = event.data as Record<string, unknown> | null;
     if (!data) return;
     if (data.type !== "better-xitter:affiliates-mute-ready") return;
     if (!hasSeenResponse) return;
-    globalThis.postMessage(
+    postMessage(
       {
         type: "better-xitter:affiliates-users",
         users: lastUsers,
@@ -126,7 +103,7 @@ import { fetchGraphqlJson, getPath } from "@/utils.ts";
     lastUsers = users;
     hasSeenResponse = true;
 
-    globalThis.postMessage(
+    postMessage(
       {
         type: "better-xitter:affiliates-users",
         users,
@@ -136,12 +113,12 @@ import { fetchGraphqlJson, getPath } from "@/utils.ts";
   }
 
   function isTargetGraphqlRequest(url: string): boolean {
-    if (!isAffiliatesPathname(globalThis.location?.pathname ?? "")) {
+    if (!isAffiliatesPathname(location.pathname)) {
       return false;
     }
     const parsed = new URL(
       url,
-      globalThis.location?.origin ?? "https://x.com",
+      location.origin,
     );
     const pathname = parsed.pathname;
     return pathname.includes("/graphql/") &&
@@ -154,7 +131,7 @@ import { fetchGraphqlJson, getPath } from "@/utils.ts";
   ): string | null {
     const url = new URL(
       originalUrl,
-      globalThis.location?.origin ?? "https://x.com",
+      location.origin,
     );
     const pathname = url.pathname;
     const isTeamTimelinePath = pathname.includes("/graphql/") &&

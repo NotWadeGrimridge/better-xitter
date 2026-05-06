@@ -1,9 +1,7 @@
-/// <reference lib="dom" />
-
 import { fetchGraphqlJson } from "@/utils.ts";
 
 (() => {
-  const win = globalThis as unknown as Window & {
+  const win = window as Window & {
     __betterXitterTweetInfoInstalled?: boolean;
   };
 
@@ -50,23 +48,12 @@ import { fetchGraphqlJson } from "@/utils.ts";
   }
 
   function getFocusedTweetIdFromPath(): string | null {
-    const path = win.location?.pathname ?? "";
+    const path = location.pathname;
     const statusIndex = path.indexOf("/status/");
     if (statusIndex === -1) return null;
 
     const rest = path.slice(statusIndex + "/status/".length);
-    if (!rest) return null;
-
-    let id = "";
-    for (let i = 0; i < rest.length; i++) {
-      const code = rest.charCodeAt(i);
-      if (code >= 48 && code <= 57) {
-        id += rest[i];
-        continue;
-      }
-      break;
-    }
-
+    const id = rest.match(/^\d+/)?.[0];
     if (!id) return null;
     return id;
   }
@@ -153,15 +140,15 @@ import { fetchGraphqlJson } from "@/utils.ts";
       return;
     }
 
-    const path = win.location?.pathname ?? "";
+    const path = location.pathname;
     const match = path.match(/^\/([^/]+)\/status\/\d+/);
     const screenName = match ? match[1] : null;
-    let location:
+    let accountLocation:
       | { account_based_in: string; location_accurate: boolean }
       | null = null;
 
     if (typeof screenName === "string" && screenName.length > 0) {
-      location = await getAccountLocation(screenName);
+      accountLocation = await getAccountLocation(screenName);
     }
 
     win.postMessage(
@@ -169,25 +156,24 @@ import { fetchGraphqlJson } from "@/utils.ts";
         type: "better-xitter:tweet-info",
         tweetId,
         sourceName,
-        accountBasedIn: location?.account_based_in ?? null,
-        locationAccurate: location?.location_accurate ?? null,
+        accountBasedIn: accountLocation?.account_based_in ?? null,
+        locationAccurate: accountLocation?.location_accurate ?? null,
       },
       "*",
     );
   }
 
-  if (/^\/[^/]+\/status\/\d+/.test(win.location?.pathname ?? "")) {
-    void emitFocusedTweetInfo();
+  if (/^\/[^/]+\/status\/\d+/.test(location.pathname)) {
+    emitFocusedTweetInfo();
   }
 
   const root = document.body ?? document.documentElement;
-  if (!root) return;
 
   const observer = new MutationObserver(() => {
-    if (!/^\/[^/]+\/status\/\d+/.test(win.location?.pathname ?? "")) {
+    if (!/^\/[^/]+\/status\/\d+/.test(location.pathname)) {
       return;
     }
-    void emitFocusedTweetInfo();
+    emitFocusedTweetInfo();
   });
 
   observer.observe(root, {

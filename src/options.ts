@@ -1,11 +1,32 @@
-type OptionDefinition = {
-  id: string;
+export type OptionId =
+  | "hideOffers"
+  | "hideTrending"
+  | "hideLiveOnX"
+  | "hideNews"
+  | "hideWhoToFollow"
+  | "hideFooter"
+  | "showTweetClientInfo"
+  | "showTweetLocationInfo"
+  | "hideAffiliatedOrgTweets"
+  | "hideAffiliatedOrgQuoteTweets"
+  | "hideNewPostsBanner"
+  | "hideTimelineSideBorders"
+  | "hidePromotedPosts"
+  | "hideGrokButton"
+  | "hideGrokDrawer"
+  | "hideChatDrawer"
+  | "hideNavigationLabels"
+  | "centerNavigation"
+  | "movePostButtonToCorner";
+
+export type Option = {
+  id: OptionId;
   label: string;
   rule: string;
   selector?: string;
   defaultEnabled: boolean;
   control?: "checkbox" | "select";
-  children?: readonly OptionDefinition[];
+  children?: readonly Option[];
 };
 
 export const optionHierarchy = [
@@ -189,12 +210,12 @@ export const optionHierarchy = [
     `,
     defaultEnabled: true,
   },
-];
+] satisfies Option[];
 
 function flattenOptions(
-  nodes: readonly OptionDefinition[],
-): OptionDefinition[] {
-  const flattened: OptionDefinition[] = [];
+  nodes: readonly Option[],
+): Option[] {
+  const flattened: Option[] = [];
   for (const node of nodes) {
     flattened.push(node);
     if (node.children?.length) {
@@ -206,31 +227,23 @@ function flattenOptions(
 
 export const options = flattenOptions(optionHierarchy);
 
-export type Option = OptionDefinition & { selector?: string };
-export type OptionId = Option["id"];
 export type QuickActionPosition = "left" | "right";
-export type QuickSettings = {
-  quickActionsEnabled: boolean;
-  quickActionsPosition: QuickActionPosition;
-};
-export type Settings = {
-  [key: string]: boolean | QuickActionPosition | string;
-  quickActionsEnabled: boolean;
-  quickActionsPosition: QuickActionPosition;
-  quickActionsMuteEnabled: boolean;
-  quickActionsBlockEnabled: boolean;
-  quickActionsNotInterestedEnabled: boolean;
-  hideAffiliatedOrgTweets: boolean;
-  hideAffiliatedOrgTweetsOrgs: string;
-  hideAffiliatedOrgQuoteTweets: boolean;
-  showTweetClientInfo: boolean;
-  showTweetLocationInfo: boolean;
-};
+export type Settings =
+  & {
+    [K in OptionId]: boolean;
+  }
+  & {
+    quickActionsEnabled: boolean;
+    quickActionsPosition: QuickActionPosition;
+    quickActionsMuteEnabled: boolean;
+    quickActionsBlockEnabled: boolean;
+    quickActionsNotInterestedEnabled: boolean;
+    hideAffiliatedOrgTweetsOrgs: string;
+  };
 
-const optionDefaults = options.reduce(
-  (acc, option) => ({ ...acc, [option.id]: option.defaultEnabled }),
-  {} as Record<string, boolean>,
-);
+const optionDefaults = Object.fromEntries(
+  options.map((option) => [option.id, option.defaultEnabled]),
+) as Record<OptionId, boolean>;
 
 export const defaultSettings: Settings = {
   ...optionDefaults,
@@ -239,17 +252,13 @@ export const defaultSettings: Settings = {
   quickActionsMuteEnabled: true,
   quickActionsBlockEnabled: true,
   quickActionsNotInterestedEnabled: true,
-  hideAffiliatedOrgTweets: false,
   hideAffiliatedOrgTweetsOrgs: "",
-  hideAffiliatedOrgQuoteTweets: false,
-  showTweetClientInfo: true,
-  showTweetLocationInfo: true,
 };
 
 const storage: chrome.storage.StorageArea = chrome.storage.sync;
 
-export async function getSettings(): Promise<Settings> {
-  return await new Promise((resolve) => {
+export function getSettings(): Promise<Settings> {
+  return new Promise<Settings>((resolve) => {
     storage.get(defaultSettings, (items: Partial<Settings>) => {
       const merged = { ...defaultSettings, ...items } as Settings;
       resolve(merged);
@@ -257,8 +266,8 @@ export async function getSettings(): Promise<Settings> {
   });
 }
 
-export async function setSettings(update: Partial<Settings>): Promise<void> {
-  await new Promise<void>((resolve) => {
+export function setSettings(update: Partial<Settings>): Promise<void> {
+  return new Promise<void>((resolve) => {
     storage.set(update, () => resolve());
   });
 }

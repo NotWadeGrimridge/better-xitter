@@ -1,12 +1,10 @@
-/// <reference lib="dom" />
-
 import { getPath } from "@/utils.ts";
 
 (() => {
   const hookFlag = "__betterXitterHomeTimelineXhrHookInstalled";
   const maxBufferedPairs = 5000;
 
-  const win = globalThis as unknown as Record<string, unknown>;
+  const win = window as unknown as Record<string, unknown>;
   if (win[hookFlag] === true) return;
   win[hookFlag] = true;
 
@@ -40,10 +38,7 @@ import { getPath } from "@/utils.ts";
       ? urlArg.toString()
       : "";
 
-    const pathname = new URL(
-      url,
-      globalThis.location?.origin ?? "https://x.com",
-    ).pathname;
+    const pathname = new URL(url, location.origin).pathname;
     const isHomeTimeline = pathname.includes("/graphql/") &&
       pathname.endsWith("/HomeTimeline");
     if (isHomeTimeline && !this.__betterXitterHomeTimelineHooked) {
@@ -66,7 +61,7 @@ import { getPath } from "@/utils.ts";
         if (pairs.length === 0) return;
 
         if (affiliateReady) {
-          globalThis.postMessage(
+          postMessage(
             {
               type: "better-xitter:home-timeline-affiliations",
               pairs,
@@ -78,21 +73,21 @@ import { getPath } from "@/utils.ts";
 
         const remaining = maxBufferedPairs - bufferedPairs.length;
         if (remaining <= 0) return;
-        bufferedPairs = bufferedPairs.concat(pairs.slice(0, remaining));
+        bufferedPairs.push(...pairs.slice(0, remaining));
       });
     }
 
     return originalOpen.apply(this, args);
   };
 
-  globalThis.addEventListener("message", (event: MessageEvent) => {
+  addEventListener("message", (event: MessageEvent) => {
     const data = event.data as Record<string, unknown> | null;
     if (!data) return;
     if (data.type !== "better-xitter:affiliate-ready") return;
     if (affiliateReady) return;
     affiliateReady = true;
     if (bufferedPairs.length === 0) return;
-    globalThis.postMessage(
+    postMessage(
       {
         type: "better-xitter:home-timeline-affiliations",
         pairs: bufferedPairs,
@@ -182,8 +177,7 @@ import { getPath } from "@/utils.ts";
     if (hostname !== "x.com" && hostname !== "twitter.com") {
       return null;
     }
-    let path = parsed.pathname;
-    while (path.startsWith("/")) path = path.slice(1);
+    const path = parsed.pathname.replace(/^\/+/, "");
     const first = path.split("/")[0]?.trim();
     if (!first) return null;
     return first.startsWith("@") ? first.slice(1) : first;

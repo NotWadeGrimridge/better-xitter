@@ -1,5 +1,3 @@
-/// <reference lib="dom" />
-
 export function isInHomeTimeline(element: Element): boolean {
   return Boolean(
     element.closest('div[aria-label="Timeline: Your Home Timeline"]'),
@@ -10,8 +8,7 @@ export function normalizeHandleList(input: string): string[] {
   return input
     .split(",")
     .map((part) => {
-      let normalized = part.trim();
-      for (; normalized.startsWith("@"); normalized = normalized.slice(1));
+      const normalized = part.trim().replace(/^@+/, "");
       return normalized.toLowerCase();
     })
     .filter((part) => part.length > 0);
@@ -34,11 +31,15 @@ export function getPath(
   return current;
 }
 
+export function getCookie(name: string): string | null {
+  const match = `; ${document.cookie}`.match(`;\\s*${name}=([^;]+)`);
+  return match ? match[1] : null;
+}
+
 export async function fetchGraphqlJson(
   relativeOrAbsoluteUrl: string,
 ): Promise<unknown | null> {
-  const ct0 = document.cookie.split("; ").find((c) => c.startsWith("ct0="));
-  const csrfToken = ct0 ? ct0.split("=")[1] : null;
+  const csrfToken = getCookie("ct0");
 
   const headers: Record<string, string> = {
     "authorization":
@@ -54,7 +55,7 @@ export async function fetchGraphqlJson(
 
   const url = new URL(
     relativeOrAbsoluteUrl,
-    globalThis.location?.origin ?? "https://x.com",
+    globalThis.location.origin,
   );
 
   let response: Response;
@@ -71,5 +72,5 @@ export async function fetchGraphqlJson(
     return null;
   }
 
-  return await response.json();
+  return response.json();
 }

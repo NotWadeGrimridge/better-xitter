@@ -1,5 +1,4 @@
-/// <reference lib="dom" />
-
+import { getCookie } from "@/utils.ts";
 import { AffiliatesUser, isAffiliatesPathname } from "./shared.ts";
 
 const BUTTON_CONTAINER_ID = "better-xitter-affiliates-mute-buttons";
@@ -28,8 +27,7 @@ function ensureMessageHook(): void {
   if (messageHooked) return;
   messageHooked = true;
 
-  const selfWindow = globalThis as unknown as Window;
-  selfWindow.addEventListener("message", (event: MessageEvent) => {
+  addEventListener("message", (event: MessageEvent) => {
     const data = event.data as Record<string, unknown> | null;
     if (!data) return;
     if (data.type !== "better-xitter:affiliates-users") return;
@@ -57,7 +55,7 @@ function ensureMessageHook(): void {
     injectIfReady();
   });
 
-  selfWindow.postMessage({ type: "better-xitter:affiliates-mute-ready" }, "*");
+  postMessage({ type: "better-xitter:affiliates-mute-ready" }, "*");
 }
 
 function ensureObserver(): void {
@@ -84,8 +82,7 @@ function teardown(): void {
 }
 
 function isAffiliatesPage(): boolean {
-  const pathname = globalThis.location?.pathname ?? "";
-  return isAffiliatesPathname(pathname);
+  return isAffiliatesPathname(location.pathname);
 }
 
 function injectIfReady(): void {
@@ -95,7 +92,7 @@ function injectIfReady(): void {
   }
   if (!affiliatesReady) return;
 
-  const pathname = globalThis.location?.pathname ?? "";
+  const pathname = location.pathname;
   if (pathname !== lastSeenPathname) {
     lastSeenPathname = pathname;
     latestUserIds = [];
@@ -109,7 +106,7 @@ function injectIfReady(): void {
   );
   if (!userActionsButton) return;
 
-  const actionsRow = userActionsButton.parentElement as HTMLElement | null;
+  const actionsRow = userActionsButton.parentElement;
   if (!actionsRow) return;
 
   const rowTestId = actionsRow.getAttribute("data-testid");
@@ -142,7 +139,7 @@ function createTriggerButton(
   button.className = referenceButton.className;
 
   const referenceStyle = referenceButton.getAttribute("style");
-  if (referenceStyle != null) {
+  if (referenceStyle !== null) {
     button.setAttribute("style", referenceStyle);
   }
 
@@ -152,9 +149,7 @@ function createTriggerButton(
     "M18 6.59V1.2L8.71 7H5.5C4.12 7 3 8.12 3 9.5v5C3 15.88 4.12 17 5.5 17h2.09l-2.3 2.29 1.42 1.42 15.5-15.5-1.42-1.42L18 6.59zm-8 8V8.55l6-3.75v3.79l-6 6zM5 9.5c0-.28.22-.5.5-.5H8v6H5.5c-.28 0-.5-.22-.5-.5v-5zm6.5 9.24l1.45-1.45L16 19.2V14l2 .02v8.78l-6.5-4.06z";
 
   let inner: HTMLElement;
-  const referenceInner = referenceButton.firstElementChild as
-    | HTMLElement
-    | null;
+  const referenceInner = referenceButton.firstElementChild;
 
   if (referenceInner) {
     inner = referenceInner.cloneNode(true) as HTMLElement;
@@ -281,9 +276,7 @@ function teardownPopup(): void {
   }
 
   const existingPopup = document.getElementById(POPUP_ID);
-  if (existingPopup && existingPopup.parentElement) {
-    existingPopup.parentElement.removeChild(existingPopup);
-  }
+  existingPopup?.remove();
 
   popup = null;
   popupTriggerButton = null;
@@ -336,13 +329,11 @@ async function muteOrUnmuteAll(
     : "/i/api/1.1/mutes/users/destroy.json";
 
   const state = initNetState();
-  const referrer = globalThis.location?.href ?? "https://x.com/";
+  const referrer = location.href;
 
-  const total = latestUserIds.length;
-  for (let index = 0; index < total; index++) {
-    const userId = latestUserIds[index]!;
+  for (const [index, userId] of latestUserIds.entries()) {
     if (onProgress) {
-      onProgress(index + 1, total);
+      onProgress(index + 1, latestUserIds.length);
     }
     const result = await sendMuteRequest({
       endpointPath,
@@ -363,7 +354,7 @@ async function muteOrUnmuteAll(
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
   if (onDone) {
-    onDone(total);
+    onDone(latestUserIds.length);
   }
 }
 
@@ -372,11 +363,6 @@ type NetState = {
   ct0: string | null;
   transactionId: string;
 };
-
-function getCookie(name: string): string | null {
-  const match = `; ${document.cookie}`.match(`;\\s*${name}=([^;]+)`);
-  return match ? match[1] : null;
-}
 
 function updateTransactionId(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(95));
@@ -419,10 +405,9 @@ async function waitForRateLimit(response: Response): Promise<void> {
   const resetTs = Number(reset);
   if (!Number.isFinite(resetTs) || resetTs <= 0) return;
 
-  let seconds = resetTs - Math.floor(Date.now() / 1000);
-  while (seconds > 0) {
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    seconds = resetTs - Math.floor(Date.now() / 1000);
+  const seconds = resetTs - Math.floor(Date.now() / 1000);
+  if (seconds > 0) {
+    await new Promise((resolve) => setTimeout(resolve, seconds * 1000));
   }
 }
 

@@ -7,9 +7,7 @@ export type AffiliatesUser = {
 };
 
 export function isAffiliatesPathname(pathname: string): boolean {
-  let path = pathname;
-  while (path.startsWith("/")) path = path.slice(1);
-  while (path.endsWith("/")) path = path.slice(0, -1);
+  const path = pathname.replace(/^\/+|\/+$/g, "");
   const segments = path.split("/").filter(Boolean);
   return segments.length === 2 && segments[1] === "affiliates";
 }

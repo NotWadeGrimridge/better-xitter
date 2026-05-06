@@ -1,5 +1,3 @@
-/// <reference lib="dom" />
-
 import { isInHomeTimeline, normalizeHandleList } from "@/utils.ts";
 
 const affiliateHiddenAttribute = "data-better-xitter-affiliate-hidden";
@@ -37,9 +35,7 @@ function ensureMessageHook(): void {
   if (messageHooked) return;
   messageHooked = true;
 
-  const selfWindow = globalThis as unknown as Window;
-
-  selfWindow.addEventListener("message", (event: MessageEvent) => {
+  addEventListener("message", (event: MessageEvent) => {
     // Messages come from the page MAIN world hook via postMessage.
     // In Chrome, content scripts run in an isolated world, so `event.source === window`
     // is not a reliable filter here. We only key off `data.type`.
@@ -73,7 +69,7 @@ function ensureMessageHook(): void {
   // Ask the MAIN-world XHR hook to replay any affiliation pairs it already saw.
   // This avoids missing the initial HomeTimeline response if it completed before
   // this content script finished loading and installed its message listener.
-  selfWindow.postMessage({ type: "better-xitter:affiliate-ready" }, "*");
+  postMessage({ type: "better-xitter:affiliate-ready" }, "*");
 }
 
 function ensureObserver(): void {
@@ -85,14 +81,13 @@ function ensureObserver(): void {
         continue;
       }
       for (const node of mutation.addedNodes) {
-        if (node.nodeType !== Node.ELEMENT_NODE) continue;
-        scan(node as Element);
+        if (!(node instanceof Element)) continue;
+        scan(node);
       }
     }
   });
 
   const root = document.body ?? document.documentElement;
-  if (!root) return;
 
   observer.observe(root, {
     childList: true,
@@ -142,10 +137,13 @@ function hasAffiliateMatch(
   tweet: HTMLElement,
   includeQuoteTweets: boolean,
 ): boolean {
-  const handles = includeQuoteTweets ? extractAllAuthorHandles(tweet) : (() => {
+  let handles: string[];
+  if (includeQuoteTweets) {
+    handles = extractAllAuthorHandles(tweet);
+  } else {
     const handle = extractAuthorHandle(tweet);
-    return handle ? [handle] : [];
-  })();
+    handles = handle ? [handle] : [];
+  }
 
   if (handles.length === 0) return false;
 

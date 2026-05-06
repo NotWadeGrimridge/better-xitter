@@ -1,9 +1,6 @@
-/// <reference lib="dom" />
-
 import {
   defaultSettings,
   getSettings,
-  type Option,
   options,
   type Settings,
 } from "@/options.ts";
@@ -16,21 +13,29 @@ const liveOnXDataAttribute = "data-better-xitter-live-on-x-hidden";
 let liveOnXObserver: MutationObserver | null = null;
 
 function ensureStyleElement(): HTMLStyleElement {
-  const existing = document.getElementById(styleId);
-  if (existing) return existing as HTMLStyleElement;
+  const existing = document.querySelector<HTMLStyleElement>(`#${styleId}`);
+  if (existing) return existing;
 
   const style = document.createElement("style");
   style.id = styleId;
   const parent = document.head ?? document.documentElement;
-  if (!parent) throw new Error("Missing document root");
   parent.append(style);
   return style;
+}
+
+function injectPageScript(path: string): void {
+  const url = chrome.runtime.getURL(path);
+  const script = document.createElement("script");
+  script.src = url;
+  const parent = document.head ?? document.documentElement;
+  parent.append(script);
+  script.remove();
 }
 
 function buildStyles(settings: Settings): string {
   const rules: string[] = [];
 
-  for (const option of options as readonly Option[]) {
+  for (const option of options) {
     if (!settings[option.id]) continue;
     const rule = option.selector
       ? `${option.selector} { ${option.rule} }`
@@ -116,7 +121,6 @@ function updateLiveOnXVisibility(enabled: boolean): void {
   if (liveOnXObserver) return;
 
   const root = document.body ?? document.documentElement;
-  if (!root) return;
 
   liveOnXObserver = new MutationObserver(() => {
     apply();
@@ -131,6 +135,20 @@ function updateLiveOnXVisibility(enabled: boolean): void {
 function watchSettingChanges(settings: Settings): void {
   let current = settings;
 
+  function apply<T extends keyof Settings>(
+    changes: Record<string, chrome.storage.StorageChange>,
+    key: T,
+    coerce: (raw: unknown) => Settings[T],
+  ): boolean {
+    const change = changes[key as string];
+    if (!change) return false;
+    current = {
+      ...current,
+      [key]: coerce(change.newValue ?? defaultSettings[key]),
+    };
+    return true;
+  }
+
   const listener = (
     changes: Record<string, chrome.storage.StorageChange>,
     areaName: string,
@@ -138,140 +156,46 @@ function watchSettingChanges(settings: Settings): void {
     if (areaName !== "sync") return;
 
     let updated = false;
+
     for (const option of options) {
-      const change = changes[option.id];
-      if (!change) continue;
-
-      current = {
-        ...current,
-        [option.id]: Boolean(
-          change.newValue ?? defaultSettings[option.id],
-        ),
-      };
-      updated = true;
+      if (apply(changes, option.id, Boolean)) {
+        updated = true;
+      }
     }
 
-    const quickActionsMuteEnabledChange = changes.quickActionsMuteEnabled;
-    if (quickActionsMuteEnabledChange) {
-      current = {
-        ...current,
-        quickActionsMuteEnabled: Boolean(
-          quickActionsMuteEnabledChange.newValue ??
-            defaultSettings.quickActionsMuteEnabled,
-        ),
-      };
-      updated = true;
+    for (
+      const key of [
+        "quickActionsMuteEnabled",
+        "quickActionsBlockEnabled",
+        "quickActionsNotInterestedEnabled",
+        "quickActionsEnabled",
+      ] as const
+    ) {
+      if (apply(changes, key, Boolean)) updated = true;
     }
 
-    const quickActionsBlockEnabledChange = changes.quickActionsBlockEnabled;
-    if (quickActionsBlockEnabledChange) {
-      current = {
-        ...current,
-        quickActionsBlockEnabled: Boolean(
-          quickActionsBlockEnabledChange.newValue ??
-            defaultSettings.quickActionsBlockEnabled,
-        ),
-      };
-      updated = true;
+    if (
+      apply(
+        changes,
+        "quickActionsPosition",
+        (v) => v as Settings["quickActionsPosition"],
+      )
+    ) updated = true;
+    if (apply(changes, "hideAffiliatedOrgTweetsOrgs", String)) updated = true;
+
+    if (changes.hideLiveOnX) {
+      updateLiveOnXVisibility(current.hideLiveOnX);
     }
 
-    const quickActionsNotInterestedEnabledChange = changes
-      .quickActionsNotInterestedEnabled;
-    if (quickActionsNotInterestedEnabledChange) {
-      current = {
-        ...current,
-        quickActionsNotInterestedEnabled: Boolean(
-          quickActionsNotInterestedEnabledChange.newValue ??
-            defaultSettings.quickActionsNotInterestedEnabled,
-        ),
-      };
-      updated = true;
-    }
-
-    const quickActionsEnabledChange = changes.quickActionsEnabled;
-    if (quickActionsEnabledChange) {
-      current = {
-        ...current,
-        quickActionsEnabled: Boolean(
-          quickActionsEnabledChange.newValue ??
-            defaultSettings.quickActionsEnabled,
-        ),
-      };
-      updated = true;
-    }
-
-    const quickActionsPositionChange = changes.quickActionsPosition;
-    if (quickActionsPositionChange) {
-      current = {
-        ...current,
-        quickActionsPosition: (quickActionsPositionChange.newValue ??
-          defaultSettings.quickActionsPosition) as Settings[
-            "quickActionsPosition"
-          ],
-      };
-      updated = true;
-    }
-
-    const hideLiveOnXChange = changes.hideLiveOnX;
-    if (hideLiveOnXChange) {
-      current = {
-        ...current,
-        hideLiveOnX: Boolean(
-          hideLiveOnXChange.newValue ?? defaultSettings.hideLiveOnX,
-        ),
-      };
-      updated = true;
-      updateLiveOnXVisibility(Boolean(current.hideLiveOnX));
-    }
-
-    const hideAffiliateChange = changes.hideAffiliatedOrgTweets;
-    if (hideAffiliateChange) {
-      current = {
-        ...current,
-        hideAffiliatedOrgTweets: Boolean(
-          hideAffiliateChange.newValue ??
-            defaultSettings.hideAffiliatedOrgTweets,
-        ),
-      };
-      updated = true;
+    if (
+      changes.hideAffiliatedOrgTweets ||
+      changes.hideAffiliatedOrgTweetsOrgs ||
+      changes.hideAffiliatedOrgQuoteTweets
+    ) {
       configureAffiliateHide(
-        Boolean(current.hideAffiliatedOrgTweets),
+        current.hideAffiliatedOrgTweets,
         current.hideAffiliatedOrgTweetsOrgs,
-        Boolean(current.hideAffiliatedOrgQuoteTweets),
-      );
-    }
-
-    const hideAffiliateOrgsChange = changes.hideAffiliatedOrgTweetsOrgs;
-    if (hideAffiliateOrgsChange) {
-      current = {
-        ...current,
-        hideAffiliatedOrgTweetsOrgs: String(
-          hideAffiliateOrgsChange.newValue ??
-            defaultSettings.hideAffiliatedOrgTweetsOrgs,
-        ),
-      };
-      updated = true;
-      configureAffiliateHide(
-        Boolean(current.hideAffiliatedOrgTweets),
-        current.hideAffiliatedOrgTweetsOrgs,
-        Boolean(current.hideAffiliatedOrgQuoteTweets),
-      );
-    }
-
-    const hideAffiliateQuoteTweetsChange = changes.hideAffiliatedOrgQuoteTweets;
-    if (hideAffiliateQuoteTweetsChange) {
-      current = {
-        ...current,
-        hideAffiliatedOrgQuoteTweets: Boolean(
-          hideAffiliateQuoteTweetsChange.newValue ??
-            defaultSettings.hideAffiliatedOrgQuoteTweets,
-        ),
-      };
-      updated = true;
-      configureAffiliateHide(
-        Boolean(current.hideAffiliatedOrgTweets),
-        current.hideAffiliatedOrgTweetsOrgs,
-        Boolean(current.hideAffiliatedOrgQuoteTweets),
+        current.hideAffiliatedOrgQuoteTweets,
       );
     }
 
@@ -280,9 +204,9 @@ function watchSettingChanges(settings: Settings): void {
       configureQuickMuteBlock({
         enabled: current.quickActionsEnabled,
         position: current.quickActionsPosition,
-        showMute: Boolean(current.quickActionsMuteEnabled),
-        showBlock: Boolean(current.quickActionsBlockEnabled),
-        showNotInterested: Boolean(current.quickActionsNotInterestedEnabled),
+        showMute: current.quickActionsMuteEnabled,
+        showBlock: current.quickActionsBlockEnabled,
+        showNotInterested: current.quickActionsNotInterestedEnabled,
       });
     }
   };
@@ -297,55 +221,27 @@ async function main(): Promise<void> {
   configureQuickMuteBlock({
     enabled: settings.quickActionsEnabled,
     position: settings.quickActionsPosition,
-    showMute: Boolean(settings.quickActionsMuteEnabled),
-    showBlock: Boolean(settings.quickActionsBlockEnabled),
-    showNotInterested: Boolean(settings.quickActionsNotInterestedEnabled),
+    showMute: settings.quickActionsMuteEnabled,
+    showBlock: settings.quickActionsBlockEnabled,
+    showNotInterested: settings.quickActionsNotInterestedEnabled,
   });
-  updateLiveOnXVisibility(Boolean(settings.hideLiveOnX));
+  updateLiveOnXVisibility(settings.hideLiveOnX);
 
-  {
-    const url = chrome.runtime.getURL(
-      "hide-affiliates/home_timeline_xhr_hook.js",
-    );
-    const script = document.createElement("script");
-    script.src = url;
-    script.type = "text/javascript";
-    const parent = document.head ?? document.documentElement;
-    if (parent) parent.append(script);
-    script.remove();
-  }
-
-  {
-    const url = chrome.runtime.getURL(
-      "mute-affiliates/affiliates_page_xhr_hook.js",
-    );
-    const script = document.createElement("script");
-    script.src = url;
-    script.type = "text/javascript";
-    const parent = document.head ?? document.documentElement;
-    if (parent) parent.append(script);
-    script.remove();
-  }
+  injectPageScript("hide-affiliates/home_timeline_xhr_hook.js");
+  injectPageScript("mute-affiliates/affiliates_page_xhr_hook.js");
 
   if (settings.showTweetClientInfo || settings.showTweetLocationInfo) {
-    const url = chrome.runtime.getURL(
-      "tweet-info/tweet_info_page.js",
-    );
-    const script = document.createElement("script");
-    script.src = url;
-    script.type = "text/javascript";
-    const parent = document.head ?? document.documentElement;
-    if (parent) parent.append(script);
-    script.remove();
+    injectPageScript("tweet-info/tweet_info_page.js");
     configureTweetInfo({
-      showClientInfo: Boolean(settings.showTweetClientInfo),
-      showLocationInfo: Boolean(settings.showTweetLocationInfo),
+      showClientInfo: settings.showTweetClientInfo,
+      showLocationInfo: settings.showTweetLocationInfo,
     });
   }
+
   configureAffiliateHide(
-    Boolean(settings.hideAffiliatedOrgTweets),
+    settings.hideAffiliatedOrgTweets,
     settings.hideAffiliatedOrgTweetsOrgs,
-    Boolean(settings.hideAffiliatedOrgQuoteTweets),
+    settings.hideAffiliatedOrgQuoteTweets,
   );
   watchSettingChanges(settings);
 }
