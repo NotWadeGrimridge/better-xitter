@@ -13,9 +13,9 @@
   },
   "imports": {
     "@/": "./src/",
-    "@std/fs": "jsr:@std/fs@^1.0.21",
+    "@std/fs": "jsr:@std/fs@^1.0.23",
     "@std/path": "jsr:@std/path@^1.1.4",
-    "@types/chrome": "npm:@types/chrome@^0.1.32",
+    "@types/chrome": "npm:@types/chrome@^0.1.40",
     "fflate": "npm:fflate@^0.8.2"
   },
   "lint": {

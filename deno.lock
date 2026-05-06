@@ -1,23 +1,23 @@
 {
   "version": "5",
   "specifiers": {
-    "jsr:@std/fs@^1.0.21": "1.0.21",
-    "jsr:@std/internal@^1.0.12": "1.0.12",
+    "jsr:@std/fs@^1.0.23": "1.0.23",
+    "jsr:@std/internal@^1.0.12": "1.0.13",
     "jsr:@std/path@^1.1.4": "1.1.4",
-    "npm:@types/chrome@*": "0.1.32",
-    "npm:@types/chrome@~0.1.32": "0.1.32",
+    "npm:@types/chrome@*": "0.1.40",
+    "npm:@types/chrome@~0.1.40": "0.1.40",
     "npm:fflate@~0.8.2": "0.8.2"
   },
   "jsr": {
-    "@std/fs@1.0.21": {
-      "integrity": "d720fe1056d78d43065a4d6e0eeb2b19f34adb8a0bc7caf3a4dbf1d4178252cd",
+    "@std/fs@1.0.23": {
+      "integrity": "3ecbae4ce4fee03b180fa710caff36bb5adb66631c46a6460aaad49515565a37",
       "dependencies": [
         "jsr:@std/internal",
         "jsr:@std/path"
       ]
     },
-    "@std/internal@1.0.12": {
-      "integrity": "972a634fd5bc34b242024402972cd5143eac68d8dffaca5eaa4dba30ce17b027"
+    "@std/internal@1.0.13": {
+      "integrity": "2f9546691d4ac2d32859c82dff284aaeac980ddeca38430d07941e7e288725c0"
     },
     "@std/path@1.1.4": {
       "integrity": "1d2d43f39efb1b42f0b1882a25486647cb851481862dc7313390b2bb044314b5",
@@ -27,8 +27,8 @@
     }
   },
   "npm": {
-    "@types/chrome@0.1.32": {
-      "integrity": "sha512-n5Cqlh7zyAqRLQWLXkeV5K/1BgDZdVcO/dJSTa8x+7w+sx7m73UrDmduAptg4KorMtyTW2TNnPu8RGeaDMKNGg==",
+    "@types/chrome@0.1.40": {
+      "integrity": "sha512-UnfyRAe8ORu9HSuTH0EqyOEUin3JrWW9Nl/gDXezNfTUrfIoxw+WRZgKOxGz0t5BnjbfXBnS2eCYfW2PxH1wcA==",
       "dependencies": [
         "@types/filesystem",
         "@types/har-format"
@@ -52,10 +52,10 @@
   },
   "workspace": {
     "dependencies": [
-      "jsr:@std/fs@^1.0.21",
+      "jsr:@std/fs@^1.0.23",
       "jsr:@std/path@^1.1.4",
       "npm:@types/chrome@*",
-      "npm:@types/chrome@~0.1.32",
+      "npm:@types/chrome@~0.1.40",
       "npm:fflate@~0.8.2"
     ]
   }
