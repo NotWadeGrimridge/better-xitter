@@ -1,4 +1,5 @@
 import { fetchGraphqlJson } from "@/utils.ts";
+import { debounce } from "@std/async/debounce";
 
 (() => {
   const win = window as Window & {
@@ -122,15 +123,6 @@ import { fetchGraphqlJson } from "@/utils.ts";
     const info = tweetEntities[tweetId] as
       | {
         source_name?: unknown;
-        core?: {
-          user_results?: {
-            result?: {
-              core?: {
-                screen_name?: unknown;
-              };
-            };
-          };
-        };
       }
       | undefined;
     if (!info) return;
@@ -168,12 +160,15 @@ import { fetchGraphqlJson } from "@/utils.ts";
   }
 
   const root = document.body ?? document.documentElement;
+  const emitFocusedTweetInfoDebounced = debounce(() => {
+    void emitFocusedTweetInfo();
+  }, 100);
 
   const observer = new MutationObserver(() => {
     if (!/^\/[^/]+\/status\/\d+/.test(location.pathname)) {
       return;
     }
-    emitFocusedTweetInfo();
+    emitFocusedTweetInfoDebounced();
   });
 
   observer.observe(root, {

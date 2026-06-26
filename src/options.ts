@@ -1,3 +1,5 @@
+import { pick } from "@std/collections/pick";
+
 export type OptionId =
   | "hideOffers"
   | "hideTrending"
@@ -22,10 +24,9 @@ export type OptionId =
 export type Option = {
   id: OptionId;
   label: string;
-  rule: string;
+  rule?: string;
   selector?: string;
   defaultEnabled: boolean;
-  control?: "checkbox" | "select";
   children?: readonly Option[];
 };
 
@@ -58,8 +59,6 @@ export const optionHierarchy = [
   {
     id: "hideLiveOnX",
     label: 'Hide "Live on X"',
-    selector: '[data-testid="sidebarColumn"]',
-    rule: "",
     defaultEnabled: true,
   },
   {
@@ -92,29 +91,21 @@ export const optionHierarchy = [
   {
     id: "showTweetClientInfo",
     label: "Show client on tweets",
-    selector: "body",
-    rule: "",
     defaultEnabled: true,
   },
   {
     id: "showTweetLocationInfo",
     label: "Show country on tweets",
-    selector: "body",
-    rule: "",
     defaultEnabled: true,
   },
   {
     id: "hideAffiliatedOrgTweets",
     label: "Hide affiliates of chosen orgs",
-    selector: "body",
-    rule: "",
     defaultEnabled: false,
     children: [
       {
         id: "hideAffiliatedOrgQuoteTweets",
         label: "Also hide quote-tweets of affiliates",
-        selector: "body",
-        rule: "",
         defaultEnabled: false,
       },
     ],
@@ -228,6 +219,14 @@ function flattenOptions(
 export const options = flattenOptions(optionHierarchy);
 
 export type QuickActionPosition = "left" | "right";
+const quickActionPositions = ["left", "right"] as const;
+const quickActionBooleanKeys = [
+  "quickActionsEnabled",
+  "quickActionsMuteEnabled",
+  "quickActionsBlockEnabled",
+  "quickActionsNotInterestedEnabled",
+] as const;
+
 export type Settings =
   & {
     [K in OptionId]: boolean;
@@ -255,13 +254,57 @@ export const defaultSettings: Settings = {
   hideAffiliatedOrgTweetsOrgs: "",
 };
 
+const settingKeys = [
+  ...options.map((option) => option.id),
+  ...quickActionBooleanKeys,
+  "quickActionsPosition",
+  "hideAffiliatedOrgTweetsOrgs",
+] as const satisfies readonly (keyof Settings)[];
+
+export type RawSettings = Partial<Record<keyof Settings, unknown>>;
+
+function isQuickActionPosition(value: unknown): value is QuickActionPosition {
+  return quickActionPositions.includes(value as QuickActionPosition);
+}
+
+export function normalizeSettings(input: RawSettings): Settings {
+  const picked = pick(input, settingKeys);
+  const normalized: Settings = { ...defaultSettings };
+
+  for (const option of options) {
+    const value = picked[option.id];
+    normalized[option.id] = typeof value === "boolean"
+      ? value
+      : defaultSettings[option.id];
+  }
+
+  for (const key of quickActionBooleanKeys) {
+    const value = picked[key];
+    normalized[key] = typeof value === "boolean" ? value : defaultSettings[key];
+  }
+
+  const position = picked.quickActionsPosition;
+  normalized.quickActionsPosition = isQuickActionPosition(position)
+    ? position
+    : defaultSettings.quickActionsPosition;
+
+  const orgs = picked.hideAffiliatedOrgTweetsOrgs;
+  normalized.hideAffiliatedOrgTweetsOrgs = typeof orgs === "string"
+    ? orgs
+    : defaultSettings.hideAffiliatedOrgTweetsOrgs;
+
+  return normalized;
+}
+
+export function mergeSettings(base: Settings, update: RawSettings): Settings {
+  return normalizeSettings({ ...base, ...update });
+}
 const storage: chrome.storage.StorageArea = chrome.storage.sync;
 
 export function getSettings(): Promise<Settings> {
   return new Promise<Settings>((resolve) => {
-    storage.get(defaultSettings, (items: Partial<Settings>) => {
-      const merged = { ...defaultSettings, ...items } as Settings;
-      resolve(merged);
+    storage.get(defaultSettings, (items) => {
+      resolve(normalizeSettings(items as RawSettings));
     });
   });
 }

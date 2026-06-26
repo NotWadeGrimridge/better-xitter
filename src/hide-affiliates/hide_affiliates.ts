@@ -11,6 +11,8 @@ let targetOrgHandles = new Set<string>();
 const userAffiliationsByAuthorHandle = new Map<string, Set<string>>();
 let scanScheduled = false;
 
+type AffiliationPair = [string, string];
+
 export function configureAffiliateHide(
   nextEnabled: boolean,
   orgHandlesCsv: string,
@@ -42,15 +44,12 @@ function ensureMessageHook(): void {
     const data = event.data as Record<string, unknown> | null;
     if (!data) return;
     if (data.type !== "better-xitter:home-timeline-affiliations") return;
-    const pairs = data.pairs;
-    if (!Array.isArray(pairs)) return;
+    const pairs = parseAffiliationPairs(data.pairs);
+    if (pairs.length === 0) return;
 
     let changed = false;
     for (const pair of pairs) {
-      if (!Array.isArray(pair) || pair.length !== 2) continue;
       const [author, org] = pair;
-      if (typeof author !== "string" || typeof org !== "string") continue;
-      if (author.length === 0 || org.length === 0) continue;
 
       let orgs = userAffiliationsByAuthorHandle.get(author);
       if (!orgs) {
@@ -70,6 +69,20 @@ function ensureMessageHook(): void {
   // This avoids missing the initial HomeTimeline response if it completed before
   // this content script finished loading and installed its message listener.
   postMessage({ type: "better-xitter:affiliate-ready" }, "*");
+}
+
+function parseAffiliationPairs(value: unknown): AffiliationPair[] {
+  if (!Array.isArray(value)) return [];
+
+  const pairs: AffiliationPair[] = [];
+  for (const item of value) {
+    if (!Array.isArray(item) || item.length !== 2) continue;
+    const [author, org] = item;
+    if (typeof author !== "string" || typeof org !== "string") continue;
+    if (author.length === 0 || org.length === 0) continue;
+    pairs.push([author, org]);
+  }
+  return pairs;
 }
 
 function ensureObserver(): void {

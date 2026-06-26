@@ -38,7 +38,13 @@ import { getPath } from "@/utils.ts";
       ? urlArg.toString()
       : "";
 
-    const pathname = new URL(url, location.origin).pathname;
+    let pathname: string;
+    try {
+      pathname = new URL(url, location.origin).pathname;
+    } catch {
+      return originalOpen.apply(this, args);
+    }
+
     const isHomeTimeline = pathname.includes("/graphql/") &&
       pathname.endsWith("/HomeTimeline");
     if (isHomeTimeline && !this.__betterXitterHomeTimelineHooked) {
@@ -54,7 +60,11 @@ import { getPath } from "@/utils.ts";
         }
 
         if (typeof payload === "string") {
-          payload = JSON.parse(payload);
+          try {
+            payload = JSON.parse(payload);
+          } catch {
+            return;
+          }
         }
 
         const pairs = extractAffiliationPairs(payload);
@@ -170,7 +180,13 @@ import { getPath } from "@/utils.ts";
   }
 
   function parseHandleFromProfileUrl(url: string): string | null {
-    const parsed = new URL(url);
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      return null;
+    }
+
     const hostname = parsed.hostname.startsWith("www.")
       ? parsed.hostname.slice(4)
       : parsed.hostname;

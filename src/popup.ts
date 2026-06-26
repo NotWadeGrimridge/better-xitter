@@ -1,9 +1,7 @@
 import {
-  defaultSettings,
   getSettings,
   type Option,
   optionHierarchy,
-  options,
   type QuickActionPosition,
   setSettings,
   type Settings,
@@ -123,28 +121,18 @@ function buildQuickActionToggle(
   return { input, item };
 }
 
-function buildToggles(settings: Settings): {
-  inputs: Map<Option["id"], HTMLInputElement>;
-  quickActionsToggle: HTMLInputElement;
-  quickActionsPosition: HTMLSelectElement;
-  quickActionsChildList: HTMLUListElement;
-  quickActionsChildren: HTMLInputElement[];
-  childControls: Map<Option["id"], ChildControls>;
-} {
+function buildToggles(settings: Settings): void {
   const root = document.getElementById("root");
   if (!root) throw new Error("Popup root missing");
   root.textContent = "";
 
   const list = document.createElement("ul");
-  const inputs = new Map<Option["id"], HTMLInputElement>();
-  const childControls = new Map<Option["id"], ChildControls>();
 
   const appendOptionNode = (
     option: Option,
     parentList: HTMLUListElement,
   ): HTMLInputElement => {
     const { item, checkbox } = buildToggle(option, settings);
-    inputs.set(option.id, checkbox);
     parentList.append(item);
 
     if (option.id === "hideAffiliatedOrgTweets") {
@@ -195,8 +183,6 @@ function buildToggles(settings: Settings): {
       });
 
       item.append(childList);
-
-      childControls.set(option.id, controls);
     }
 
     return checkbox;
@@ -333,21 +319,12 @@ function buildToggles(settings: Settings): {
   const separator = document.createElement("hr");
   sidebarContainer.append(separator);
 
-  let movePostItem: HTMLLIElement | undefined;
   for (const optionId of leftSidebarOptionIds) {
     const element = list.querySelector<HTMLLIElement>(
       `li[data-option-id="${optionId}"]`,
     );
     if (!element) continue;
-    if (optionId === "movePostButtonToCorner") {
-      movePostItem = element;
-    } else {
-      sidebarContainer.append(element);
-    }
-  }
-
-  if (movePostItem) {
-    sidebarContainer.append(movePostItem);
+    sidebarContainer.append(element);
   }
 
   sidebarDetails.append(sidebarContainer);
@@ -391,116 +368,11 @@ function buildToggles(settings: Settings): {
   }
 
   root.append(list);
-  return {
-    inputs,
-    quickActionsToggle,
-    quickActionsPosition,
-    quickActionsChildList,
-    quickActionsChildren,
-    childControls,
-  };
-}
-
-function watchStorageUpdates(
-  inputs: Map<Option["id"], HTMLInputElement>,
-  quickActionsToggle: HTMLInputElement,
-  quickActionsPosition: HTMLSelectElement,
-  quickActionsChildList: HTMLUListElement,
-  quickActionsChildren: HTMLInputElement[],
-  childControls: Map<Option["id"], ChildControls>,
-): void {
-  const quickActionCheckIds = [
-    { key: "quickActionsMuteEnabled" as const, id: quickActionsMuteId },
-    { key: "quickActionsBlockEnabled" as const, id: quickActionsBlockId },
-    {
-      key: "quickActionsNotInterestedEnabled" as const,
-      id: quickActionsNotInterestedId,
-    },
-  ];
-
-  const listener = (
-    changes: Record<string, chrome.storage.StorageChange>,
-  ): void => {
-    for (const option of options) {
-      const change = changes[option.id];
-      if (!change) continue;
-
-      const checkbox = inputs.get(option.id);
-      if (!checkbox) continue;
-      checkbox.checked = Boolean(
-        change.newValue ?? defaultSettings[option.id],
-      );
-    }
-
-    for (const [parentId, controls] of childControls.entries()) {
-      const parent = inputs.get(parentId);
-      if (!parent) continue;
-      setChildControls(parent.checked, controls);
-    }
-
-    if (changes.quickActionsEnabled) {
-      quickActionsToggle.checked = Boolean(
-        changes.quickActionsEnabled.newValue ??
-          defaultSettings.quickActionsEnabled,
-      );
-      setQuickActionsChildrenEnabled(
-        quickActionsToggle.checked,
-        quickActionsPosition,
-        quickActionsChildList,
-        quickActionsChildren,
-      );
-    }
-
-    if (changes.quickActionsPosition) {
-      quickActionsPosition.value = (
-        changes.quickActionsPosition.newValue ??
-          defaultSettings.quickActionsPosition
-      ) as QuickActionPosition;
-    }
-
-    for (const { key, id } of quickActionCheckIds) {
-      const change = changes[key];
-      if (!change) continue;
-      const input = document.getElementById(id) as HTMLInputElement | null;
-      if (input) {
-        input.checked = Boolean(change.newValue ?? defaultSettings[key]);
-      }
-    }
-
-    if (changes.hideAffiliatedOrgTweetsOrgs) {
-      const input = document.getElementById(affiliatedOrgsInputId) as
-        | HTMLInputElement
-        | null;
-      if (input) {
-        input.value = String(
-          changes.hideAffiliatedOrgTweetsOrgs.newValue ??
-            defaultSettings.hideAffiliatedOrgTweetsOrgs,
-        );
-      }
-    }
-  };
-
-  chrome.storage.onChanged.addListener(listener);
 }
 
 async function main(): Promise<void> {
   const settings = await getSettings();
-  const {
-    inputs,
-    quickActionsToggle,
-    quickActionsPosition,
-    quickActionsChildList,
-    quickActionsChildren,
-    childControls,
-  } = buildToggles(settings);
-  watchStorageUpdates(
-    inputs,
-    quickActionsToggle,
-    quickActionsPosition,
-    quickActionsChildList,
-    quickActionsChildren,
-    childControls,
-  );
+  buildToggles(settings);
 }
 
 main();

@@ -1,4 +1,4 @@
-import { AffiliatesUser, isAffiliatesPathname } from "./shared.ts";
+import { isAffiliatesPathname } from "./shared.ts";
 import { fetchGraphqlJson, getPath } from "@/utils.ts";
 
 (() => {
@@ -8,13 +8,8 @@ import { fetchGraphqlJson, getPath } from "@/utils.ts";
   if (win[hookFlag] === true) return;
   win[hookFlag] = true;
 
-  type HeaderPair = [string, string];
-  const hookedXhrs = new WeakSet<XMLHttpRequest>();
-  const firstUrls = new WeakMap<XMLHttpRequest, string>();
-  const firstMethods = new WeakMap<XMLHttpRequest, string>();
-  const recordedHeaders = new WeakMap<XMLHttpRequest, HeaderPair[]>();
   let hasReplayedFirstRequest = false;
-  let lastUsers: AffiliatesUser[] = [];
+  let lastUserIds: string[] = [];
   let hasSeenResponse = false;
 
   const XHR = XMLHttpRequest.prototype;
@@ -33,39 +28,17 @@ import { fetchGraphqlJson, getPath } from "@/utils.ts";
       : "";
 
     if (!hasReplayedFirstRequest && isTargetGraphqlRequest(url)) {
-      const xhr = this as XMLHttpRequest;
+      const instanceOriginalSend = this.send.bind(this);
+      const replayUrl = buildCountOverrideUrl(url, 1000);
 
-      hookedXhrs.add(xhr);
-      firstUrls.set(xhr, url);
-      const methodArg = args[0];
-      firstMethods.set(xhr, typeof methodArg === "string" ? methodArg : "GET");
-      recordedHeaders.set(xhr, []);
-
-      const instanceOriginalSetRequestHeader = xhr.setRequestHeader.bind(xhr);
-      const instanceOriginalSend = xhr.send.bind(xhr);
-
-      xhr.setRequestHeader = function (
+      this.send = function (
         this: XMLHttpRequest,
-        name: string,
-        value: string,
+        ...sendArgs: unknown[]
       ): void {
-        if (hookedXhrs.has(this)) {
-          recordedHeaders.get(this)?.push([name, value]);
-        }
-        return instanceOriginalSetRequestHeader(name, value);
-      };
-
-      xhr.send = function (this: XMLHttpRequest, ...sendArgs: unknown[]): void {
-        if (hookedXhrs.has(this) && !hasReplayedFirstRequest) {
+        if (!hasReplayedFirstRequest) {
           hasReplayedFirstRequest = true;
-          const method = firstMethods.get(this) ?? "GET";
-          const firstUrl = firstUrls.get(this);
-          const headers = recordedHeaders.get(this) ?? [];
-          if (firstUrl) {
-            const replayUrl = buildCountOverrideUrl(firstUrl, 1000);
-            if (replayUrl) {
-              replayTeamTimelineRequest({ method, url: replayUrl, headers });
-            }
+          if (replayUrl) {
+            replayTeamTimelineRequest(replayUrl);
           }
         }
         return (instanceOriginalSend as (...args: unknown[]) => void)(
@@ -85,28 +58,24 @@ import { fetchGraphqlJson, getPath } from "@/utils.ts";
     postMessage(
       {
         type: "better-xitter:affiliates-users",
-        users: lastUsers,
+        userIds: lastUserIds,
       },
       "*",
     );
   });
 
-  async function replayTeamTimelineRequest(input: {
-    method: string;
-    url: string;
-    headers: HeaderPair[];
-  }): Promise<void> {
-    const payload = await fetchGraphqlJson(input.url);
+  async function replayTeamTimelineRequest(url: string): Promise<void> {
+    const payload = await fetchGraphqlJson(url);
     if (!payload) return;
 
-    const users = extractUsersFromTeamTimeline(payload);
-    lastUsers = users;
+    const userIds = extractUserIdsFromTeamTimeline(payload);
+    lastUserIds = userIds;
     hasSeenResponse = true;
 
     postMessage(
       {
         type: "better-xitter:affiliates-users",
-        users,
+        userIds,
       },
       "*",
     );
@@ -116,10 +85,17 @@ import { fetchGraphqlJson, getPath } from "@/utils.ts";
     if (!isAffiliatesPathname(location.pathname)) {
       return false;
     }
-    const parsed = new URL(
-      url,
-      location.origin,
-    );
+
+    let parsed: URL;
+    try {
+      parsed = new URL(
+        url,
+        location.origin,
+      );
+    } catch {
+      return false;
+    }
+
     const pathname = parsed.pathname;
     return pathname.includes("/graphql/") &&
       pathname.endsWith("/UserBusinessProfileTeamTimeline");
@@ -129,10 +105,16 @@ import { fetchGraphqlJson, getPath } from "@/utils.ts";
     originalUrl: string,
     count: number,
   ): string | null {
-    const url = new URL(
-      originalUrl,
-      location.origin,
-    );
+    let url: URL;
+    try {
+      url = new URL(
+        originalUrl,
+        location.origin,
+      );
+    } catch {
+      return null;
+    }
+
     const pathname = url.pathname;
     const isTeamTimelinePath = pathname.includes("/graphql/") &&
       pathname.endsWith("/UserBusinessProfileTeamTimeline");
@@ -141,13 +123,21 @@ import { fetchGraphqlJson, getPath } from "@/utils.ts";
     const variablesRaw = url.searchParams.get("variables");
     if (!variablesRaw) return null;
 
-    const variables = JSON.parse(variablesRaw) as Record<string, unknown>;
+    let variables: Record<string, unknown>;
+    try {
+      const parsed = JSON.parse(variablesRaw);
+      if (typeof parsed !== "object" || parsed === null) return null;
+      variables = parsed as Record<string, unknown>;
+    } catch {
+      return null;
+    }
+
     variables.count = count;
     url.searchParams.set("variables", JSON.stringify(variables));
     return url.toString();
   }
 
-  function extractUsersFromTeamTimeline(payload: unknown): AffiliatesUser[] {
+  function extractUserIdsFromTeamTimeline(payload: unknown): string[] {
     const instructions = getPath(payload, [
       "data",
       "user",
@@ -158,13 +148,7 @@ import { fetchGraphqlJson, getPath } from "@/utils.ts";
     ]);
     if (!Array.isArray(instructions)) return [];
 
-    const byRestId = new Map<string, {
-      rest_id: string;
-      screen_name: string;
-      name?: string;
-      avatar_url?: string;
-      affiliate_label_url?: string;
-    }>();
+    const userIds = new Set<string>();
 
     for (const instruction of instructions) {
       const entries = (instruction as Record<string, unknown> | null)?.entries;
@@ -180,34 +164,11 @@ import { fetchGraphqlJson, getPath } from "@/utils.ts";
         if (typeof user !== "object" || user === null) continue;
 
         const rest_id = (user as Record<string, unknown>).rest_id;
-        const screen_name = getPath(user, ["core", "screen_name"]);
-        if (typeof rest_id !== "string" || typeof screen_name !== "string") {
-          continue;
-        }
-
-        const name = getPath(user, ["core", "name"]);
-        const avatar_url = getPath(user, ["avatar", "image_url"]);
-        const affiliate_label_url = getPath(user, [
-          "affiliates_highlighted_label",
-          "label",
-          "url",
-          "url",
-        ]);
-
-        if (!byRestId.has(rest_id)) {
-          byRestId.set(rest_id, {
-            rest_id,
-            screen_name,
-            name: typeof name === "string" ? name : undefined,
-            avatar_url: typeof avatar_url === "string" ? avatar_url : undefined,
-            affiliate_label_url: typeof affiliate_label_url === "string"
-              ? affiliate_label_url
-              : undefined,
-          });
-        }
+        if (typeof rest_id !== "string") continue;
+        userIds.add(rest_id);
       }
     }
 
-    return [...byRestId.values()];
+    return [...userIds];
   }
 })();

@@ -1,5 +1,5 @@
 import { getCookie } from "@/utils.ts";
-import { AffiliatesUser, isAffiliatesPathname } from "./shared.ts";
+import { isAffiliatesPathname } from "./shared.ts";
 
 const BUTTON_CONTAINER_ID = "better-xitter-affiliates-mute-buttons";
 const POPUP_ID = "better-xitter-affiliates-mute-popup";
@@ -31,31 +31,26 @@ function ensureMessageHook(): void {
     const data = event.data as Record<string, unknown> | null;
     if (!data) return;
     if (data.type !== "better-xitter:affiliates-users") return;
-    const users = data.users;
-    if (!Array.isArray(users)) return;
+    const userIds = parseUserIds(data.userIds);
+    if (!userIds) return;
     affiliatesReady = true;
 
-    const parsed: AffiliatesUser[] = [];
-    for (const user of users) {
-      if (typeof user !== "object" || user === null) continue;
-      const rest_id = (user as Record<string, unknown>).rest_id;
-      const screen_name = (user as Record<string, unknown>).screen_name;
-      const name = (user as Record<string, unknown>).name;
-      if (typeof rest_id !== "string" || typeof screen_name !== "string") {
-        continue;
-      }
-      parsed.push({
-        rest_id,
-        screen_name,
-        name: typeof name === "string" ? name : undefined,
-      });
-    }
-
-    latestUserIds = [...new Set(parsed.map((u) => u.rest_id))];
+    latestUserIds = userIds;
     injectIfReady();
   });
 
   postMessage({ type: "better-xitter:affiliates-mute-ready" }, "*");
+}
+
+function parseUserIds(value: unknown): string[] | null {
+  if (!Array.isArray(value)) return null;
+
+  const userIds = new Set<string>();
+  for (const userId of value) {
+    if (typeof userId !== "string") continue;
+    userIds.add(userId);
+  }
+  return [...userIds];
 }
 
 function ensureObserver(): void {

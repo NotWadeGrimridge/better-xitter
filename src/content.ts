@@ -1,7 +1,8 @@
 import {
-  defaultSettings,
   getSettings,
+  mergeSettings,
   options,
+  type RawSettings,
   type Settings,
 } from "@/options.ts";
 import { configureQuickMuteBlock } from "@/quick-actions/quick_actions.ts";
@@ -36,7 +37,7 @@ function buildStyles(settings: Settings): string {
   const rules: string[] = [];
 
   for (const option of options) {
-    if (!settings[option.id]) continue;
+    if (!settings[option.id] || !option.rule) continue;
     const rule = option.selector
       ? `${option.selector} { ${option.rule} }`
       : option.rule;
@@ -135,32 +136,21 @@ function updateLiveOnXVisibility(enabled: boolean): void {
 function watchSettingChanges(settings: Settings): void {
   let current = settings;
 
-  function apply<T extends keyof Settings>(
-    changes: Record<string, chrome.storage.StorageChange>,
-    key: T,
-    coerce: (raw: unknown) => Settings[T],
-  ): boolean {
-    const change = changes[key as string];
-    if (!change) return false;
-    current = {
-      ...current,
-      [key]: coerce(change.newValue ?? defaultSettings[key]),
-    };
-    return true;
-  }
-
   const listener = (
     changes: Record<string, chrome.storage.StorageChange>,
     areaName: string,
   ): void => {
     if (areaName !== "sync") return;
 
-    let updated = false;
+    const update: RawSettings = {};
+    let styleUpdated = false;
+    let quickActionsUpdated = false;
 
     for (const option of options) {
-      if (apply(changes, option.id, Boolean)) {
-        updated = true;
-      }
+      const change = changes[option.id];
+      if (!change) continue;
+      update[option.id] = change.newValue;
+      styleUpdated = true;
     }
 
     for (
@@ -171,17 +161,23 @@ function watchSettingChanges(settings: Settings): void {
         "quickActionsEnabled",
       ] as const
     ) {
-      if (apply(changes, key, Boolean)) updated = true;
+      const change = changes[key];
+      if (!change) continue;
+      update[key] = change.newValue;
+      quickActionsUpdated = true;
     }
 
-    if (
-      apply(
-        changes,
-        "quickActionsPosition",
-        (v) => v as Settings["quickActionsPosition"],
-      )
-    ) updated = true;
-    if (apply(changes, "hideAffiliatedOrgTweetsOrgs", String)) updated = true;
+    if (changes.quickActionsPosition) {
+      update.quickActionsPosition = changes.quickActionsPosition.newValue;
+      quickActionsUpdated = true;
+    }
+    if (changes.hideAffiliatedOrgTweetsOrgs) {
+      update.hideAffiliatedOrgTweetsOrgs =
+        changes.hideAffiliatedOrgTweetsOrgs.newValue;
+      styleUpdated = true;
+    }
+
+    current = mergeSettings(current, update);
 
     if (changes.hideLiveOnX) {
       updateLiveOnXVisibility(current.hideLiveOnX);
@@ -199,8 +195,11 @@ function watchSettingChanges(settings: Settings): void {
       );
     }
 
-    if (updated) {
+    if (styleUpdated) {
       applySettings(current);
+    }
+
+    if (quickActionsUpdated || styleUpdated) {
       configureQuickMuteBlock({
         enabled: current.quickActionsEnabled,
         position: current.quickActionsPosition,

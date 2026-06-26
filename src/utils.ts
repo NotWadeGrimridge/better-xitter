@@ -72,5 +72,9 @@ export async function fetchGraphqlJson(
     return null;
   }
 
-  return response.json();
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
 }

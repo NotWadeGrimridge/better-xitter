@@ -118,36 +118,50 @@ function decorateTweetById(
   }
 }
 
+type TweetInfoMessage = {
+  tweetId: string;
+  sourceName: string | null;
+  accountBasedIn: string | null;
+  locationAccurate: boolean | null;
+};
+
+function parseTweetInfoMessage(
+  value: unknown,
+  showClientInfo: boolean,
+): TweetInfoMessage | null {
+  if (typeof value !== "object" || value === null) return null;
+
+  const data = value as Record<string, unknown>;
+  if (data.type !== "better-xitter:tweet-info") return null;
+  if (typeof data.tweetId !== "string") return null;
+  if (showClientInfo && typeof data.sourceName !== "string") return null;
+
+  return {
+    tweetId: data.tweetId,
+    sourceName: typeof data.sourceName === "string" ? data.sourceName : null,
+    accountBasedIn: typeof data.accountBasedIn === "string"
+      ? data.accountBasedIn
+      : null,
+    locationAccurate: typeof data.locationAccurate === "boolean"
+      ? data.locationAccurate
+      : null,
+  };
+}
+
 export function configureTweetInfo(input: {
   showClientInfo: boolean;
   showLocationInfo: boolean;
 }): void {
   const { showClientInfo, showLocationInfo } = input;
   addEventListener("message", (event: MessageEvent) => {
-    const data = event.data as
-      | {
-        type?: unknown;
-        tweetId?: unknown;
-        sourceName?: unknown;
-        accountBasedIn?: unknown;
-        locationAccurate?: unknown;
-      }
-      | null;
+    const data = parseTweetInfoMessage(event.data, showClientInfo);
     if (!data) return;
-    if (data.type !== "better-xitter:tweet-info") return;
-    if (typeof data.tweetId !== "string") return;
-    if (showClientInfo && typeof data.sourceName !== "string") return;
-    const accountBasedIn = typeof data.accountBasedIn === "string"
-      ? data.accountBasedIn
-      : null;
-    const locationAccurate = typeof data.locationAccurate === "boolean"
-      ? data.locationAccurate
-      : null;
+
     decorateTweetById(
       data.tweetId,
-      showClientInfo ? data.sourceName as string : null,
-      accountBasedIn,
-      locationAccurate,
+      showClientInfo ? data.sourceName : null,
+      data.accountBasedIn,
+      data.locationAccurate,
       showClientInfo,
       showLocationInfo,
     );
