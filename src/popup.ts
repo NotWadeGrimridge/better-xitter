@@ -1,378 +1,228 @@
 import {
   getSettings,
-  type Option,
-  optionHierarchy,
-  type QuickActionPosition,
+  OPTION_HIERARCHY,
+  QUICK_ACTION_POSITIONS,
   setSettings,
-  type Settings,
 } from "@/options.ts";
+import type { Option, OptionId, ToggleId } from "@/options.ts";
 
-const affiliatedOrgsInputId = "input-hide-affiliated-org-tweets-orgs";
-const quickActionsToggleId = "toggle-quick-actions";
-const quickActionsPositionId = "select-quick-actions-position";
-const quickActionsMuteId = "toggle-quick-actions-mute";
-const quickActionsBlockId = "toggle-quick-actions-block";
-const quickActionsNotInterestedId = "toggle-quick-actions-not-interested";
-const rightSidebarOptionIds: Option["id"][] = [
-  "hideOffers",
-  "hideTrending",
-  "hideLiveOnX",
-  "hideNews",
-  "hideWhoToFollow",
-  "hideFooter",
-];
-const leftSidebarOptionIds: Option["id"][] = [
-  "hideNavigationLabels",
-  "centerNavigation",
-  "movePostButtonToCorner",
-];
-const declutterOptionIds: Option["id"][] = [
-  "hideNewPostsBanner",
-  "hideTimelineSideBorders",
-  "hidePromotedPosts",
-  "hideGrokButton",
-  "hideGrokDrawer",
-  "hideChatDrawer",
-];
-const featureOptionIds: Option["id"][] = [
-  "showTweetClientInfo",
-  "showTweetLocationInfo",
-  "hideAffiliatedOrgTweets",
-];
-const quickActionPositions: QuickActionPosition[] = ["left", "right"];
+const settings = await getSettings();
+const optionsById = new Map<OptionId, Option>(
+  OPTION_HIERARCHY.map((option) => [option.id, option]),
+);
 
-type ChildControls = {
-  childCheckboxes: HTMLInputElement[];
-  childList: HTMLUListElement;
-};
-
-function setChildControls(
-  parentChecked: boolean,
-  controls: ChildControls,
-): void {
-  const disabled = !parentChecked;
-  const hidden = !parentChecked;
-
-  for (const childCheckbox of controls.childCheckboxes) {
-    childCheckbox.disabled = disabled;
-  }
-  controls.childList.classList.toggle("is-disabled", disabled);
-  controls.childList.hidden = hidden;
-}
-
-function setQuickActionsChildrenEnabled(
-  enabled: boolean,
-  positionSelect: HTMLSelectElement,
-  childList: HTMLUListElement,
-  children: HTMLInputElement[],
-): void {
-  positionSelect.disabled = !enabled;
-  for (const input of children) {
-    input.disabled = !enabled;
-  }
-  childList.classList.toggle("is-disabled", !enabled);
-  childList.hidden = !enabled;
-}
-
-function buildToggle(
-  option: Option,
-  settings: Settings,
-): {
-  item: HTMLLIElement;
-  checkbox: HTMLInputElement;
-} {
-  const checkbox = document.createElement("input");
-  checkbox.type = "checkbox";
-  checkbox.id = `toggle-${option.id}`;
-  checkbox.checked = settings[option.id];
-  checkbox.addEventListener("change", () => {
-    setSettings({ [option.id]: checkbox.checked });
-  });
-
-  const label = document.createElement("label");
-  label.htmlFor = checkbox.id;
-  const labelText = document.createTextNode(option.label);
-
-  label.append(checkbox, labelText);
-  const item = document.createElement("li");
-  item.dataset.optionId = option.id;
-  item.append(label);
-  return { item, checkbox };
-}
-
-function buildQuickActionToggle(
-  id: string,
+function createToggle(
+  id: ToggleId,
   labelText: string,
-  checked: boolean,
-  onChange: (checked: boolean) => void,
-): { input: HTMLInputElement; item: HTMLLIElement } {
+): { item: HTMLLIElement; input: HTMLInputElement } {
   const input = document.createElement("input");
   input.type = "checkbox";
-  input.id = id;
-  input.checked = checked;
-  input.addEventListener("change", () => onChange(input.checked));
+  input.role = "switch";
+  input.checked = settings[id];
+  input.addEventListener("change", () => setSettings({ [id]: input.checked }));
+
+  const text = document.createElement("span");
+  text.textContent = labelText;
 
   const label = document.createElement("label");
-  label.htmlFor = id;
-  label.append(input, document.createTextNode(labelText));
+  label.className = "row";
+  label.append(text, input);
 
   const item = document.createElement("li");
   item.append(label);
-  return { input, item };
+
+  return { item, input };
 }
 
-function buildToggles(settings: Settings): void {
-  const root = document.getElementById("root");
-  if (!root) throw new Error("Popup root missing");
-  root.textContent = "";
+function createChildList(
+  parent: HTMLInputElement,
+  ...children: HTMLElement[]
+): HTMLUListElement {
+  const list = document.createElement("ul");
+  list.className = "child-list";
+  list.append(...children);
+  list.hidden = !parent.checked;
+
+  parent.addEventListener("change", () => {
+    list.hidden = !parent.checked;
+  });
+
+  return list;
+}
+
+function createOrgHandlesField(): HTMLLIElement {
+  const input = document.createElement("input");
+  input.type = "text";
+  input.placeholder = "@Kalshi, @Polymarket";
+  input.ariaLabel = "Organization handles";
+  input.value = settings.hideAffiliatedOrgTweetsOrgs;
+  input.addEventListener("input", () => {
+    setSettings({ hideAffiliatedOrgTweetsOrgs: input.value });
+  });
+
+  const item = document.createElement("li");
+  item.className = "field";
+  item.append(input);
+
+  return item;
+}
+
+function createOptionItem(option: Option): HTMLLIElement {
+  const { item, input } = createToggle(option.id, option.label);
+
+  const children = option.children?.map(createOptionItem) ?? [];
+  if (option.id === "hideAffiliatedOrgTweets") {
+    children.unshift(createOrgHandlesField());
+  }
+  if (children.length > 0) item.append(createChildList(input, ...children));
+
+  return item;
+}
+
+function createOptionItems(ids: OptionId[]): HTMLLIElement[] {
+  return ids.flatMap((id) => {
+    const option = optionsById.get(id);
+    return option ? [createOptionItem(option)] : [];
+  });
+}
+
+function createPositionPicker(): HTMLLIElement {
+  const picker = document.createElement("div");
+  picker.className = "segmented";
+  picker.role = "radiogroup";
+  picker.ariaLabel = "Button position";
+
+  for (const position of QUICK_ACTION_POSITIONS) {
+    const input = document.createElement("input");
+    input.type = "radio";
+    input.name = "quickActionsPosition";
+    input.checked = position === settings.quickActionsPosition;
+    input.addEventListener("change", () => {
+      setSettings({ quickActionsPosition: position });
+    });
+
+    const label = document.createElement("label");
+    label.append(input, position === "left" ? "Left" : "Right");
+    picker.append(label);
+  }
+
+  const text = document.createElement("span");
+  text.textContent = "Position";
+
+  const row = document.createElement("div");
+  row.className = "row";
+  row.append(text, picker);
+
+  const item = document.createElement("li");
+  item.append(row);
+
+  return item;
+}
+
+function createQuickActionsItem(): HTMLLIElement {
+  const { item, input } = createToggle(
+    "quickActionsEnabled",
+    "Show quick action buttons",
+  );
+
+  item.append(
+    createChildList(
+      input,
+      createPositionPicker(),
+      createToggle("quickActionsNotInterestedEnabled", "Not interested").item,
+      createToggle("quickActionsMuteEnabled", "Mute").item,
+      createToggle("quickActionsBlockEnabled", "Block").item,
+    ),
+  );
+
+  return item;
+}
+
+function createSection(
+  title: string,
+  items: HTMLElement[],
+  hint?: string,
+): HTMLDetailsElement {
+  const count = document.createElement("span");
+  count.className = "count";
+
+  const summary = document.createElement("summary");
+  summary.append(title, count);
 
   const list = document.createElement("ul");
+  list.className = "rows";
+  list.append(...items);
 
-  const appendOptionNode = (
-    option: Option,
-    parentList: HTMLUListElement,
-  ): HTMLInputElement => {
-    const { item, checkbox } = buildToggle(option, settings);
-    parentList.append(item);
+  const details = document.createElement("details");
+  details.className = "section";
+  details.name = "sections";
+  details.append(summary, list);
 
-    if (option.id === "hideAffiliatedOrgTweets") {
-      const orgsInput = document.createElement("input");
-      orgsInput.id = affiliatedOrgsInputId;
-      orgsInput.type = "text";
-      orgsInput.placeholder = "@Kalshi, @Polymarket";
-      orgsInput.value = settings.hideAffiliatedOrgTweetsOrgs;
-
-      orgsInput.addEventListener("input", () => {
-        setSettings({ hideAffiliatedOrgTweetsOrgs: orgsInput.value });
-      });
-
-      const orgsContainer = document.createElement("div");
-      orgsContainer.append(orgsInput);
-      orgsContainer.hidden = !checkbox.checked;
-      item.append(orgsContainer);
-
-      const label = item.querySelector("label");
-      if (label) {
-        const help = document.createElement("span");
-        help.className = "help-icon";
-        help.textContent = "?";
-        help.title =
-          "Hide tweets from users affiliated to orgs that you don't like (only on For You page).";
-        label.append(help);
-      }
-
-      checkbox.addEventListener("change", () => {
-        orgsContainer.hidden = !checkbox.checked;
-      });
-    }
-
-    if (option.children?.length) {
-      const childList = document.createElement("ul");
-      childList.classList.add("child-list");
-      const childCheckboxes: HTMLInputElement[] = [];
-
-      for (const child of option.children) {
-        childCheckboxes.push(appendOptionNode(child, childList));
-      }
-
-      const controls: ChildControls = { childCheckboxes, childList };
-
-      setChildControls(checkbox.checked, controls);
-      checkbox.addEventListener("change", () => {
-        setChildControls(checkbox.checked, controls);
-      });
-
-      item.append(childList);
-    }
-
-    return checkbox;
-  };
-
-  for (const option of optionHierarchy) {
-    appendOptionNode(option, list);
+  if (hint) {
+    const hintText = document.createElement("p");
+    hintText.className = "hint";
+    hintText.textContent = hint;
+    details.append(hintText);
   }
 
-  const quickActionsToggle = document.createElement("input");
-  quickActionsToggle.type = "checkbox";
-  quickActionsToggle.id = quickActionsToggleId;
-  quickActionsToggle.checked = settings.quickActionsEnabled;
-
-  const quickActionsPosition = document.createElement("select");
-  quickActionsPosition.id = quickActionsPositionId;
-
-  const quickActionsLabel = document.createElement("label");
-  quickActionsLabel.htmlFor = quickActionsToggleId;
-  quickActionsLabel.append(
-    quickActionsToggle,
-    document.createTextNode(" Enable quick action buttons"),
-  );
-
-  for (const position of quickActionPositions) {
-    const optionElement = document.createElement("option");
-    optionElement.value = position;
-    optionElement.textContent = position === "left" ? "Left" : "Right";
-    if (position === settings.quickActionsPosition) {
-      optionElement.selected = true;
-    }
-    quickActionsPosition.append(optionElement);
+  function updateCount(): void {
+    const switches = [
+      ...list.querySelectorAll<HTMLInputElement>('input[role="switch"]'),
+    ].filter((toggle) => !toggle.closest("[hidden]"));
+    const enabledCount = switches.filter((toggle) => toggle.checked).length;
+    count.textContent = `${enabledCount}/${switches.length}`;
   }
 
-  quickActionsPosition.disabled = !settings.quickActionsEnabled;
-  quickActionsPosition.addEventListener("change", () => {
-    const value = quickActionsPosition.value as QuickActionPosition;
-    setSettings({ quickActionsPosition: value });
-  });
+  updateCount();
+  list.addEventListener("change", updateCount);
 
-  const quickActionsPositionItem = document.createElement("li");
-  const quickActionsPositionLabel = document.createElement("label");
-  quickActionsPositionLabel.htmlFor = quickActionsPositionId;
-  quickActionsPositionLabel.append(
-    document.createTextNode("Position:"),
-    quickActionsPosition,
-  );
-  quickActionsPositionItem.append(quickActionsPositionLabel);
-
-  const quickActionsChildList = document.createElement("ul");
-  quickActionsChildList.classList.add("child-list");
-
-  const quickActionsChildren: HTMLInputElement[] = [];
-
-  const { input: quickActionsMute, item: quickActionsMuteItem } =
-    buildQuickActionToggle(
-      quickActionsMuteId,
-      " Mute",
-      settings.quickActionsMuteEnabled,
-      (checked) => setSettings({ quickActionsMuteEnabled: checked }),
-    );
-  quickActionsChildren.push(quickActionsMute);
-
-  const { input: quickActionsBlock, item: quickActionsBlockItem } =
-    buildQuickActionToggle(
-      quickActionsBlockId,
-      " Block",
-      settings.quickActionsBlockEnabled,
-      (checked) => setSettings({ quickActionsBlockEnabled: checked }),
-    );
-  quickActionsChildren.push(quickActionsBlock);
-
-  const {
-    input: quickActionsNotInterested,
-    item: quickActionsNotInterestedItem,
-  } = buildQuickActionToggle(
-    quickActionsNotInterestedId,
-    " Not interested",
-    settings.quickActionsNotInterestedEnabled,
-    (checked) => setSettings({ quickActionsNotInterestedEnabled: checked }),
-  );
-  quickActionsChildren.push(quickActionsNotInterested);
-
-  quickActionsChildList.append(
-    quickActionsPositionItem,
-    quickActionsNotInterestedItem,
-    quickActionsMuteItem,
-    quickActionsBlockItem,
-  );
-  setQuickActionsChildrenEnabled(
-    settings.quickActionsEnabled,
-    quickActionsPosition,
-    quickActionsChildList,
-    quickActionsChildren,
-  );
-
-  quickActionsToggle.addEventListener("change", () => {
-    const enabled = quickActionsToggle.checked;
-    setSettings({ quickActionsEnabled: enabled });
-    setQuickActionsChildrenEnabled(
-      enabled,
-      quickActionsPosition,
-      quickActionsChildList,
-      quickActionsChildren,
-    );
-  });
-
-  const quickActionsContainer = document.createElement("div");
-  quickActionsContainer.append(quickActionsLabel, quickActionsChildList);
-
-  const quickActionsDetails = document.createElement("details");
-  const quickActionsSummary = document.createElement("summary");
-  quickActionsSummary.append(document.createTextNode("Quick actions"));
-  quickActionsDetails.append(quickActionsSummary, quickActionsContainer);
-
-  const quickActionsWrapper = document.createElement("li");
-  quickActionsWrapper.append(quickActionsDetails);
-
-  const sidebarDetails = document.createElement("details");
-  const sidebarSummary = document.createElement("summary");
-  sidebarSummary.append(document.createTextNode("Sidebar"));
-  sidebarDetails.append(sidebarSummary);
-
-  const sidebarContainer = document.createElement("div");
-  for (const optionId of rightSidebarOptionIds) {
-    const element = list.querySelector<HTMLLIElement>(
-      `li[data-option-id="${optionId}"]`,
-    );
-    if (element) {
-      sidebarContainer.append(element);
-    }
-  }
-
-  const separator = document.createElement("hr");
-  sidebarContainer.append(separator);
-
-  for (const optionId of leftSidebarOptionIds) {
-    const element = list.querySelector<HTMLLIElement>(
-      `li[data-option-id="${optionId}"]`,
-    );
-    if (!element) continue;
-    sidebarContainer.append(element);
-  }
-
-  sidebarDetails.append(sidebarContainer);
-  const sidebarWrapper = document.createElement("li");
-  sidebarWrapper.append(sidebarDetails);
-
-  const declutterDetails = document.createElement("details");
-  const declutterSummary = document.createElement("summary");
-  declutterSummary.append(document.createTextNode("Declutter"));
-  declutterDetails.append(declutterSummary);
-
-  const declutterContainer = document.createElement("div");
-  for (const optionId of declutterOptionIds) {
-    const item = list.querySelector<HTMLLIElement>(
-      `li[data-option-id="${optionId}"]`,
-    );
-    if (item) {
-      declutterContainer.append(item);
-    }
-  }
-
-  declutterDetails.append(declutterContainer);
-  const declutterWrapper = document.createElement("li");
-  declutterWrapper.append(declutterDetails);
-
-  const featureItems: HTMLLIElement[] = [];
-  for (const optionId of featureOptionIds) {
-    const item = list.querySelector<HTMLLIElement>(
-      `li[data-option-id="${optionId}"]`,
-    );
-    if (item) {
-      featureItems.push(item);
-    }
-  }
-
-  list.replaceChildren();
-
-  list.append(declutterWrapper, sidebarWrapper, quickActionsWrapper);
-  for (const item of featureItems) {
-    list.append(item);
-  }
-
-  root.append(list);
+  return details;
 }
 
-async function main(): Promise<void> {
-  const settings = await getSettings();
-  buildToggles(settings);
-}
+document.querySelector("#version")?.append(
+  `v${chrome.runtime.getManifest().version}`,
+);
 
-main();
+document.querySelector("#root")?.replaceChildren(
+  createSection(
+    "Timeline",
+    createOptionItems([
+      "hideNewPostsBanner",
+      "hideTimelineSideBorders",
+      "hidePromotedPosts",
+      "hideGrokButton",
+      "hideGrokDrawer",
+      "hideChatDrawer",
+    ]),
+  ),
+  createSection(
+    "Right sidebar",
+    createOptionItems([
+      "hideOffers",
+      "hideTrending",
+      "hideLiveOnX",
+      "hideNews",
+      "hideWhoToFollow",
+      "hideFooter",
+    ]),
+  ),
+  createSection(
+    "Left sidebar",
+    createOptionItems([
+      "hideNavigationLabels",
+      "centerNavigation",
+      "movePostButtonToCorner",
+    ]),
+  ),
+  createSection("Quick actions", [createQuickActionsItem()]),
+  createSection(
+    "Tweet details",
+    createOptionItems(["showTweetClientInfo", "showTweetLocationInfo"]),
+    "Reload x.com to apply changes here.",
+  ),
+  createSection(
+    "Affiliates",
+    createOptionItems(["hideAffiliatedOrgTweets"]),
+    "Hides For You tweets from people affiliated with the orgs you list.",
+  ),
+);

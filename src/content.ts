@@ -1,222 +1,100 @@
-import {
-  getSettings,
-  mergeSettings,
-  options,
-  type RawSettings,
-  type Settings,
-} from "@/options.ts";
-import { configureQuickMuteBlock } from "@/quick-actions/quick_actions.ts";
 import { configureAffiliateHide } from "@/hide-affiliates/hide_affiliates.ts";
 import { configureAffiliatesMuteButtons } from "@/mute-affiliates/mute_affiliates.ts";
+import { getSettings, mergeSettings, OPTIONS } from "@/options.ts";
+import type { RawSettings, Settings } from "@/options.ts";
+import { configureQuickMuteBlock } from "@/quick-actions/quick_actions.ts";
 import { configureTweetInfo } from "@/tweet-info/tweet_info.ts";
-const styleId = "better-xitter-style";
-const liveOnXDataAttribute = "data-better-xitter-live-on-x-hidden";
+
+const STYLE_ID = "better-xitter-style";
+const LIVE_ON_X_HIDDEN_ATTRIBUTE = "data-better-xitter-live-on-x-hidden";
+const SIDEBAR_SELECTOR = '[data-testid="sidebarColumn"]';
+
 let liveOnXObserver: MutationObserver | null = null;
 
-function ensureStyleElement(): HTMLStyleElement {
-  const existing = document.querySelector<HTMLStyleElement>(`#${styleId}`);
-  if (existing) return existing;
-
-  const style = document.createElement("style");
-  style.id = styleId;
-  const parent = document.head ?? document.documentElement;
-  parent.append(style);
-  return style;
-}
-
 function injectPageScript(path: string): void {
-  const url = chrome.runtime.getURL(path);
   const script = document.createElement("script");
-  script.src = url;
-  const parent = document.head ?? document.documentElement;
-  parent.append(script);
+  script.src = chrome.runtime.getURL(path);
+  (document.head ?? document.documentElement).append(script);
   script.remove();
 }
 
-function buildStyles(settings: Settings): string {
-  const rules: string[] = [];
-
-  for (const option of options) {
-    if (!settings[option.id] || !option.rule) continue;
-    const rule = option.selector
-      ? `${option.selector} { ${option.rule} }`
-      : option.rule;
-    rules.push(rule);
+function applyStyles(settings: Settings): void {
+  let style = document.querySelector<HTMLStyleElement>(`#${STYLE_ID}`);
+  if (!style) {
+    style = document.createElement("style");
+    style.id = STYLE_ID;
+    (document.head ?? document.documentElement).append(style);
   }
 
-  return rules.join("\n");
+  style.textContent = OPTIONS
+    .filter((option) => settings[option.id] && option.rule)
+    .map((option) =>
+      option.selector ? `${option.selector} { ${option.rule} }` : option.rule
+    )
+    .join("\n");
 }
 
-function applySettings(settings: Settings): void {
-  const style = ensureStyleElement();
-  style.textContent = buildStyles(settings);
-}
+function hideLiveOnX(): void {
+  const spans = document.querySelectorAll(
+    `${SIDEBAR_SELECTOR} div > div > h2 > div > span`,
+  );
 
-function hideLiveOnXInSidebar(sidebar: Element): void {
-  const spans = sidebar.querySelectorAll("span");
   for (const span of spans) {
     if (span.textContent?.trim() !== "Live on X") continue;
 
-    const level1 = span.parentElement as HTMLElement | null; // div>span
-    if (!level1 || level1.tagName !== "DIV") continue;
+    const section = span.closest("h2")?.parentElement?.parentElement;
+    if (!section) continue;
 
-    const level2 = level1.parentElement as HTMLElement | null; // h2>div
-    if (!level2 || level2.tagName !== "H2") continue;
-
-    const level3 = level2.parentElement as HTMLElement | null; // div>h2
-    if (!level3 || level3.tagName !== "DIV") continue;
-
-    const level4 = level3.parentElement as HTMLElement | null; // div>div
-    if (!level4 || level4.tagName !== "DIV") continue;
-
-    const topLevel = level4; // outermost div in the chain div>div>h2>div>span
-
-    const targets: HTMLElement[] = [topLevel];
-    const sibling = topLevel.nextElementSibling as HTMLElement | null;
+    const targets = [section];
+    const spacer = section.nextElementSibling;
     if (
-      sibling &&
-      sibling.tagName === "DIV" &&
-      sibling.childElementCount === 0 &&
-      sibling.textContent?.trim() === ""
+      spacer instanceof HTMLDivElement &&
+      spacer.childElementCount === 0 &&
+      spacer.textContent?.trim() === ""
     ) {
-      targets.push(sibling);
+      targets.push(spacer);
     }
 
-    for (const element of targets) {
-      if (element.getAttribute(liveOnXDataAttribute) === "true") continue;
-      element.setAttribute(liveOnXDataAttribute, "true");
-      element.hidden = true;
+    for (const target of targets) {
+      target.setAttribute(LIVE_ON_X_HIDDEN_ATTRIBUTE, "true");
+      target.hidden = true;
     }
   }
 }
 
-function updateLiveOnXVisibility(enabled: boolean): void {
-  if (!enabled) {
-    if (liveOnXObserver) {
-      liveOnXObserver.disconnect();
-      liveOnXObserver = null;
-    }
-    const sidebar = document.querySelector('[data-testid="sidebarColumn"]');
-    if (sidebar) {
-      const elements = sidebar.querySelectorAll<HTMLElement>(
-        `[${liveOnXDataAttribute}="true"]`,
-      );
-      for (const element of elements) {
-        element.removeAttribute(liveOnXDataAttribute);
-        element.hidden = false;
-      }
+function configureLiveOnX(enabled: boolean): void {
+  if (enabled) {
+    hideLiveOnX();
+    if (!liveOnXObserver) {
+      liveOnXObserver = new MutationObserver(hideLiveOnX);
+      liveOnXObserver.observe(document.body ?? document.documentElement, {
+        childList: true,
+        subtree: true,
+      });
     }
     return;
   }
 
-  const apply = (): void => {
-    const currentSidebar = document.querySelector(
-      '[data-testid="sidebarColumn"]',
-    );
-    if (!currentSidebar) return;
-    hideLiveOnXInSidebar(currentSidebar);
-  };
+  liveOnXObserver?.disconnect();
+  liveOnXObserver = null;
 
-  apply();
-
-  if (liveOnXObserver) return;
-
-  const root = document.body ?? document.documentElement;
-
-  liveOnXObserver = new MutationObserver(() => {
-    apply();
-  });
-
-  liveOnXObserver.observe(root, {
-    childList: true,
-    subtree: true,
-  });
+  const hidden = document.querySelectorAll<HTMLElement>(
+    `${SIDEBAR_SELECTOR} [${LIVE_ON_X_HIDDEN_ATTRIBUTE}]`,
+  );
+  for (const element of hidden) {
+    element.removeAttribute(LIVE_ON_X_HIDDEN_ATTRIBUTE);
+    element.hidden = false;
+  }
 }
 
-function watchSettingChanges(settings: Settings): void {
-  let current = settings;
-
-  const listener = (
-    changes: Record<string, chrome.storage.StorageChange>,
-    areaName: string,
-  ): void => {
-    if (areaName !== "sync") return;
-
-    const update: RawSettings = {};
-    let styleUpdated = false;
-    let quickActionsUpdated = false;
-
-    for (const option of options) {
-      const change = changes[option.id];
-      if (!change) continue;
-      update[option.id] = change.newValue;
-      styleUpdated = true;
-    }
-
-    for (
-      const key of [
-        "quickActionsMuteEnabled",
-        "quickActionsBlockEnabled",
-        "quickActionsNotInterestedEnabled",
-        "quickActionsEnabled",
-      ] as const
-    ) {
-      const change = changes[key];
-      if (!change) continue;
-      update[key] = change.newValue;
-      quickActionsUpdated = true;
-    }
-
-    if (changes.quickActionsPosition) {
-      update.quickActionsPosition = changes.quickActionsPosition.newValue;
-      quickActionsUpdated = true;
-    }
-    if (changes.hideAffiliatedOrgTweetsOrgs) {
-      update.hideAffiliatedOrgTweetsOrgs =
-        changes.hideAffiliatedOrgTweetsOrgs.newValue;
-      styleUpdated = true;
-    }
-
-    current = mergeSettings(current, update);
-
-    if (changes.hideLiveOnX) {
-      updateLiveOnXVisibility(current.hideLiveOnX);
-    }
-
-    if (
-      changes.hideAffiliatedOrgTweets ||
-      changes.hideAffiliatedOrgTweetsOrgs ||
-      changes.hideAffiliatedOrgQuoteTweets
-    ) {
-      configureAffiliateHide(
-        current.hideAffiliatedOrgTweets,
-        current.hideAffiliatedOrgTweetsOrgs,
-        current.hideAffiliatedOrgQuoteTweets,
-      );
-    }
-
-    if (styleUpdated) {
-      applySettings(current);
-    }
-
-    if (quickActionsUpdated || styleUpdated) {
-      configureQuickMuteBlock({
-        enabled: current.quickActionsEnabled,
-        position: current.quickActionsPosition,
-        showMute: current.quickActionsMuteEnabled,
-        showBlock: current.quickActionsBlockEnabled,
-        showNotInterested: current.quickActionsNotInterestedEnabled,
-      });
-    }
-  };
-
-  chrome.storage.onChanged.addListener(listener);
-}
-
-async function main(): Promise<void> {
-  const settings = await getSettings();
-  applySettings(settings);
-  configureAffiliatesMuteButtons(true);
+function applySettings(settings: Settings): void {
+  applyStyles(settings);
+  configureLiveOnX(settings.hideLiveOnX);
+  configureAffiliateHide(
+    settings.hideAffiliatedOrgTweets,
+    settings.hideAffiliatedOrgTweetsOrgs,
+    settings.hideAffiliatedOrgQuoteTweets,
+  );
   configureQuickMuteBlock({
     enabled: settings.quickActionsEnabled,
     position: settings.quickActionsPosition,
@@ -224,7 +102,10 @@ async function main(): Promise<void> {
     showBlock: settings.quickActionsBlockEnabled,
     showNotInterested: settings.quickActionsNotInterestedEnabled,
   });
-  updateLiveOnXVisibility(settings.hideLiveOnX);
+}
+
+async function main(): Promise<void> {
+  let settings = await getSettings();
 
   injectPageScript("hide-affiliates/home_timeline_xhr_hook.js");
   injectPageScript("mute-affiliates/affiliates_page_xhr_hook.js");
@@ -237,12 +118,19 @@ async function main(): Promise<void> {
     });
   }
 
-  configureAffiliateHide(
-    settings.hideAffiliatedOrgTweets,
-    settings.hideAffiliatedOrgTweetsOrgs,
-    settings.hideAffiliatedOrgQuoteTweets,
-  );
-  watchSettingChanges(settings);
+  configureAffiliatesMuteButtons();
+  applySettings(settings);
+
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== "sync") return;
+
+    const update: RawSettings = Object.fromEntries(
+      Object.entries(changes).map(([key, change]) => [key, change.newValue]),
+    );
+    settings = mergeSettings(settings, update);
+    applySettings(settings);
+  });
 }
 
+// oxlint-disable-next-line unicorn/prefer-top-level-await -- Content scripts are classic scripts, so top-level await is not available.
 main();

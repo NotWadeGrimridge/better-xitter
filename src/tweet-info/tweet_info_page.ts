@@ -1,177 +1,102 @@
-import { fetchGraphqlJson } from "@/utils.ts";
 import { debounce } from "@std/async/debounce";
+import { fetchGraphqlJson, getPath } from "@/utils.ts";
 
-(() => {
-  const win = window as Window & {
-    __betterXitterTweetInfoInstalled?: boolean;
-  };
+((): void => {
+  const INSTALLED_FLAG = "__betterXitterTweetInfoInstalled";
+  const STATUS_PATH_PATTERN =
+    /^\/(?<screenName>[^/]+)\/status\/(?<tweetId>\d+)/u;
 
-  if (win.__betterXitterTweetInfoInstalled) return;
-  win.__betterXitterTweetInfoInstalled = true;
+  const page = globalThis as unknown as Record<string, unknown>;
+  if (page[INSTALLED_FLAG]) return;
+  page[INSTALLED_FLAG] = true;
 
-  const accountLocationCache = new Map<
-    string,
-    { account_based_in: string; location_accurate: boolean }
-  >();
+  type AccountLocation = { basedIn: string; accurate: boolean };
 
-  function getReduxState(): Record<string, unknown> | null {
-    const root = document.querySelector<HTMLElement>("#react-root");
-    if (!root) return null;
+  const accountLocations = new Map<string, AccountLocation>();
 
-    const owner = root.firstElementChild as HTMLElement | null;
+  function getReduxState(): unknown {
+    const owner = document.querySelector("#react-root")?.firstElementChild;
     if (!owner) return null;
 
-    const keys = Object.keys(
-      owner as unknown as Record<string, unknown>,
+    const propsKey = Object.keys(owner).find((key) =>
+      key.startsWith("__reactProps")
     );
-    const key = keys.find((k) => k.startsWith("__reactProps"));
-    if (!key) return null;
+    if (!propsKey) return null;
 
-    const container = (owner as unknown as Record<string, unknown>)[key] as
-      | Record<string, unknown>
-      | undefined;
-    if (!container) return null;
+    const store = getPath(owner, [
+      propsKey,
+      "children",
+      "props",
+      "children",
+      "props",
+      "store",
+    ]) as { getState?: () => unknown } | undefined;
 
-    const childrenProps =
-      (container.children as { props?: unknown } | undefined)
-        ?.props as { children?: { props?: unknown } } | undefined;
-    const topLevelProps = childrenProps?.children?.props as
-      | { store?: { getState?: () => Record<string, unknown> } }
-      | undefined;
-
-    const store = topLevelProps?.store;
-    const getState = store?.getState as (() => unknown) | undefined;
-    if (!getState) return null;
-
-    const state = getState();
-    if (!state || typeof state !== "object") return null;
-    return state as Record<string, unknown>;
-  }
-
-  function getFocusedTweetIdFromPath(): string | null {
-    const path = location.pathname;
-    const statusIndex = path.indexOf("/status/");
-    if (statusIndex === -1) return null;
-
-    const rest = path.slice(statusIndex + "/status/".length);
-    const id = rest.match(/^\d+/)?.[0];
-    if (!id) return null;
-    return id;
+    return store?.getState?.() ?? null;
   }
 
   async function getAccountLocation(
     screenName: string,
-  ): Promise<{ account_based_in: string; location_accurate: boolean } | null> {
-    if (accountLocationCache.has(screenName)) {
-      return accountLocationCache.get(screenName) ?? null;
-    }
+  ): Promise<AccountLocation | null> {
+    const cached = accountLocations.get(screenName);
+    if (cached) return cached;
 
-    const variables = { screenName };
-    const url =
-      `/i/api/graphql/XRqGa7EeokUU5kppkh13EA/AboutAccountQuery?variables=${
-        encodeURIComponent(JSON.stringify(variables))
-      }`;
+    const variables = encodeURIComponent(JSON.stringify({ screenName }));
+    const body = await fetchGraphqlJson(
+      `/i/api/graphql/XRqGa7EeokUU5kppkh13EA/AboutAccountQuery?variables=${variables}`,
+    );
+    const about = getPath(body, [
+      "data",
+      "user_result_by_screen_name",
+      "result",
+      "about_profile",
+    ]);
 
-    const body = await fetchGraphqlJson(url) as {
-      data?: {
-        user_result_by_screen_name?: {
-          result?: {
-            about_profile?: {
-              account_based_in?: string;
-              location_accurate?: boolean;
-            };
-          };
-        };
-      };
+    const basedIn = getPath(about, ["account_based_in"]);
+    if (typeof basedIn !== "string" || !basedIn.trim()) return null;
+
+    const accountLocation = {
+      basedIn,
+      accurate: Boolean(getPath(about, ["location_accurate"])),
     };
-
-    if (!body) return null;
-
-    const about = body.data?.user_result_by_screen_name?.result
-      ?.about_profile;
-    if (
-      !about ||
-      typeof about.account_based_in !== "string" ||
-      about.account_based_in.trim().length === 0
-    ) {
-      return null;
-    }
-
-    const value = {
-      account_based_in: about.account_based_in,
-      location_accurate: Boolean(about.location_accurate),
-    };
-    accountLocationCache.set(screenName, value);
-    return value;
+    accountLocations.set(screenName, accountLocation);
+    return accountLocation;
   }
 
   async function emitFocusedTweetInfo(): Promise<void> {
-    const tweetId = getFocusedTweetIdFromPath();
-    if (!tweetId) return;
+    const { screenName, tweetId } =
+      STATUS_PATH_PATTERN.exec(location.pathname)?.groups ?? {};
+    if (!screenName || !tweetId) return;
+    const sourceName = getPath(getReduxState(), [
+      "entities",
+      "tweets",
+      "entities",
+      tweetId,
+      "source_name",
+    ]);
+    if (typeof sourceName !== "string" || !sourceName.trim()) return;
 
-    const state = getReduxState();
-    if (!state) return;
+    const accountLocation = await getAccountLocation(screenName);
 
-    const entities = state.entities as
-      | {
-        tweets?: { entities?: Record<string, unknown> };
-      }
-      | undefined;
-    const tweetEntities = entities?.tweets?.entities;
-    if (!tweetEntities) return;
-
-    const info = tweetEntities[tweetId] as
-      | {
-        source_name?: unknown;
-      }
-      | undefined;
-    if (!info) return;
-
-    const sourceName = info.source_name;
-    if (typeof sourceName !== "string" || sourceName.trim().length === 0) {
-      return;
-    }
-
-    const path = location.pathname;
-    const match = path.match(/^\/([^/]+)\/status\/\d+/);
-    const screenName = match ? match[1] : null;
-    let accountLocation:
-      | { account_based_in: string; location_accurate: boolean }
-      | null = null;
-
-    if (typeof screenName === "string" && screenName.length > 0) {
-      accountLocation = await getAccountLocation(screenName);
-    }
-
-    win.postMessage(
+    postMessage(
       {
         type: "better-xitter:tweet-info",
         tweetId,
         sourceName,
-        accountBasedIn: accountLocation?.account_based_in ?? null,
-        locationAccurate: accountLocation?.location_accurate ?? null,
+        accountBasedIn: accountLocation?.basedIn ?? null,
+        locationAccurate: accountLocation?.accurate ?? null,
       },
       "*",
     );
   }
 
-  if (/^\/[^/]+\/status\/\d+/.test(location.pathname)) {
-    emitFocusedTweetInfo();
-  }
+  const emitFocusedTweetInfoSoon = debounce(emitFocusedTweetInfo, 100);
 
-  const root = document.body ?? document.documentElement;
-  const emitFocusedTweetInfoDebounced = debounce(() => {
-    void emitFocusedTweetInfo();
-  }, 100);
+  emitFocusedTweetInfo();
 
-  const observer = new MutationObserver(() => {
-    if (!/^\/[^/]+\/status\/\d+/.test(location.pathname)) {
-      return;
-    }
-    emitFocusedTweetInfoDebounced();
-  });
-
-  observer.observe(root, {
+  new MutationObserver((): void => {
+    if (STATUS_PATH_PATTERN.test(location.pathname)) emitFocusedTweetInfoSoon();
+  }).observe(document.body ?? document.documentElement, {
     childList: true,
     subtree: true,
   });

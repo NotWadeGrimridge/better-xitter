@@ -1,0 +1,69 @@
+{
+  "plugins": [
+    "eslint",
+    "typescript",
+    "unicorn",
+    "oxc",
+    "import",
+    "promise",
+    "jsdoc"
+  ],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "pedantic": "error",
+    "perf": "error",
+    "style": "error",
+    "restriction": "error"
+  },
+  "env": {
+    "browser": true,
+    "es2024": true
+  },
+  "ignorePatterns": ["dist/**", ".agents/**", ".amp/**"],
+  "rules": {
+    // Deno style: snake_case file names, `function` declarations, named exports.
+    "unicorn/filename-case": ["error", { "case": "snakeCase" }],
+    "func-style": ["error", "declaration"],
+    "import/no-named-export": "off",
+    "import/prefer-default-export": "off",
+    "import/group-exports": "off",
+    "import/exports-last": "off",
+
+    // Modules read top-down: the public function first, then its helpers.
+    "no-use-before-define": ["error", { "functions": false }],
+
+    // Allow one-line guard clauses such as `if (!node) return;`.
+    "curly": ["error", "multi-line"],
+
+    "typescript/consistent-type-definitions": ["error", "type"],
+    "no-duplicate-imports": ["error", { "allowSeparateTypeImports": true }],
+    "sort-imports": [
+      "error",
+      { "ignoreCase": true, "ignoreDeclarationSort": true }
+    ],
+    "no-console": ["error", { "allow": ["warn"] }],
+    "capitalized-comments": [
+      "error",
+      "always",
+      { "ignoreConsecutiveComments": true }
+    ],
+
+    // Rules that ban plain modern syntax or DOM conventions.
+    "oxc/no-async-await": "off",
+    "oxc/no-optional-chaining": "off",
+    "oxc/no-rest-spread-properties": "off",
+    "unicorn/no-null": "off",
+    "no-ternary": "off",
+    "no-continue": "off",
+    "one-var": "off",
+    "sort-keys": "off",
+
+    // Size limits that only push code into one-use helpers.
+    "max-statements": "off",
+    "max-lines-per-function": "off",
+
+    // Pixel sizes, delays, and indexes read better inline.
+    "no-magic-numbers": "off"
+  }
+}

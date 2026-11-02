@@ -1,129 +1,93 @@
-import { getCookie } from "@/utils.ts";
-import { isAffiliatesPathname } from "./shared.ts";
+import { delay } from "@std/async/delay";
+import {
+  BEARER_TOKEN,
+  getCookie,
+  isAffiliatesPathname,
+  MUTE_ICON_PATH,
+  SVG_NAMESPACE,
+} from "@/utils.ts";
 
 const BUTTON_CONTAINER_ID = "better-xitter-affiliates-mute-buttons";
 const POPUP_ID = "better-xitter-affiliates-mute-popup";
+const REQUEST_INTERVAL_MS = 100;
+const REQUEST_TIMEOUT_MS = 10_000;
+const TRANSACTION_ID_ALPHABET =
+  "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 
-let messageHooked = false;
-let observer: MutationObserver | null = null;
-let latestUserIds: string[] = [];
-let lastSeenPathname = "";
-let popup: HTMLDivElement | null = null;
-let popupTriggerButton: HTMLButtonElement | null = null;
-let popupCountEl: HTMLDivElement | null = null;
-let popupProgressEl: HTMLDivElement | null = null;
-let popupOutsideClickHandler: ((event: MouseEvent) => void) | null = null;
-let affiliatesReady = false;
+type MuteAction = "mute" | "unmute";
 
-export function configureAffiliatesMuteButtons(enabled: boolean): void {
-  teardown();
-  if (!enabled) return;
-  ensureMessageHook();
-  ensureObserver();
-  injectIfReady();
-}
+type Popup = {
+  root: HTMLDivElement;
+  count: HTMLDivElement;
+  progress: HTMLDivElement;
+};
 
-function ensureMessageHook(): void {
-  if (messageHooked) return;
-  messageHooked = true;
+const userIdsByPathname = new Map<string, string[]>();
 
+let popup: Popup | null = null;
+
+export function configureAffiliatesMuteButtons(): void {
   addEventListener("message", (event: MessageEvent) => {
-    const data = event.data as Record<string, unknown> | null;
-    if (!data) return;
-    if (data.type !== "better-xitter:affiliates-users") return;
-    const userIds = parseUserIds(data.userIds);
-    if (!userIds) return;
-    affiliatesReady = true;
+    const { data } = event;
+    if (data?.type !== "better-xitter:affiliates-users") return;
+    if (typeof data.pathname !== "string" || !Array.isArray(data.userIds)) {
+      return;
+    }
 
-    latestUserIds = userIds;
-    injectIfReady();
+    userIdsByPathname.set(data.pathname, [
+      ...new Set<string>(
+        data.userIds.filter((id: unknown) => typeof id === "string"),
+      ),
+    ]);
+    injectButton();
   });
 
-  postMessage({ type: "better-xitter:affiliates-mute-ready" }, "*");
-}
-
-function parseUserIds(value: unknown): string[] | null {
-  if (!Array.isArray(value)) return null;
-
-  const userIds = new Set<string>();
-  for (const userId of value) {
-    if (typeof userId !== "string") continue;
-    userIds.add(userId);
-  }
-  return [...userIds];
-}
-
-function ensureObserver(): void {
-  if (observer) return;
-
-  observer = new MutationObserver(() => {
-    injectIfReady();
+  document.addEventListener("click", (event) => {
+    if (popup && !popup.root.contains(event.target as Node)) {
+      popup.root.style.display = "none";
+    }
   });
 
-  observer.observe(document.documentElement, {
+  new MutationObserver(injectButton).observe(document.documentElement, {
     childList: true,
     subtree: true,
   });
+
+  postMessage({ type: "better-xitter:affiliates-mute-ready" }, "*");
+  injectButton();
 }
 
-function teardown(): void {
-  if (observer) {
-    observer.disconnect();
-    observer = null;
-  }
-  teardownPopup();
-  const existing = document.getElementById(BUTTON_CONTAINER_ID);
+function injectButton(): void {
+  const { pathname } = location;
+
+  const existing = document.querySelector<HTMLElement>(
+    `#${BUTTON_CONTAINER_ID}`,
+  );
+  if (existing?.dataset.pathname === pathname) return;
+
   existing?.remove();
-}
+  removePopup();
 
-function isAffiliatesPage(): boolean {
-  return isAffiliatesPathname(location.pathname);
-}
-
-function injectIfReady(): void {
-  if (!isAffiliatesPage()) {
-    teardownButtonsOnly();
+  if (!isAffiliatesPathname(pathname) || !userIdsByPathname.has(pathname)) {
     return;
   }
-  if (!affiliatesReady) return;
 
-  const pathname = location.pathname;
-  if (pathname !== lastSeenPathname) {
-    lastSeenPathname = pathname;
-    latestUserIds = [];
-    affiliatesReady = false;
-    teardownButtonsOnly();
-    teardownPopup();
-  }
-
-  const userActionsButton = document.querySelector<HTMLButtonElement>(
+  const actionsRow = document.querySelector(
     'button[data-testid="userActions"]',
-  );
-  if (!userActionsButton) return;
-
-  const actionsRow = userActionsButton.parentElement;
+  )?.parentElement;
   if (!actionsRow) return;
 
-  const rowTestId = actionsRow.getAttribute("data-testid");
+  const rowTestId = actionsRow.dataset.testid;
   if (rowTestId && !rowTestId.startsWith("UserActions")) return;
 
-  if (document.getElementById(BUTTON_CONTAINER_ID)) return;
-
-  const primaryButton = actionsRow.querySelector<HTMLButtonElement>("button");
+  const primaryButton = actionsRow.querySelector("button");
   if (!primaryButton) return;
 
   const container = document.createElement("div");
   container.id = BUTTON_CONTAINER_ID;
-
-  const triggerButton = createTriggerButton(primaryButton);
-
-  container.append(triggerButton);
-  actionsRow.insertBefore(container, primaryButton);
-}
-
-function teardownButtonsOnly(): void {
-  const existing = document.getElementById(BUTTON_CONTAINER_ID);
-  existing?.remove();
+  container.dataset.pathname = pathname;
+  container.append(createTriggerButton(primaryButton));
+  primaryButton.before(container);
 }
 
 function createTriggerButton(
@@ -132,45 +96,35 @@ function createTriggerButton(
   const button = document.createElement("button");
   button.type = "button";
   button.className = referenceButton.className;
+  button.ariaLabel = "Better Xitter affiliates mute";
 
   const referenceStyle = referenceButton.getAttribute("style");
-  if (referenceStyle !== null) {
-    button.setAttribute("style", referenceStyle);
+  if (referenceStyle !== null) button.setAttribute("style", referenceStyle);
+
+  let content = referenceButton.firstElementChild?.cloneNode(true) as
+    | Element
+    | undefined;
+  if (!content) {
+    const fallbackSvg = document.createElementNS(SVG_NAMESPACE, "svg");
+    fallbackSvg.setAttribute("viewBox", "0 0 24 24");
+    fallbackSvg.setAttribute("width", "20");
+    fallbackSvg.setAttribute("height", "20");
+
+    content = document.createElement("div");
+    content.append(fallbackSvg);
   }
 
-  button.setAttribute("aria-label", "Better Xitter affiliates mute");
-  const ns = "http://www.w3.org/2000/svg";
-  const mutePath =
-    "M18 6.59V1.2L8.71 7H5.5C4.12 7 3 8.12 3 9.5v5C3 15.88 4.12 17 5.5 17h2.09l-2.3 2.29 1.42 1.42 15.5-15.5-1.42-1.42L18 6.59zm-8 8V8.55l6-3.75v3.79l-6 6zM5 9.5c0-.28.22-.5.5-.5H8v6H5.5c-.28 0-.5-.22-.5-.5v-5zm6.5 9.24l1.45-1.45L16 19.2V14l2 .02v8.78l-6.5-4.06z";
-
-  let inner: HTMLElement;
-  const referenceInner = referenceButton.firstElementChild;
-
-  if (referenceInner) {
-    inner = referenceInner.cloneNode(true) as HTMLElement;
-    const svg = inner.querySelector<SVGSVGElement>("svg");
-    if (svg) {
-      let path = svg.querySelector<SVGPathElement>("path");
-      if (!path) {
-        path = document.createElementNS(ns, "path");
-        svg.append(path);
-      }
-      path.setAttribute("d", mutePath);
+  const svg = content.querySelector("svg");
+  if (svg) {
+    let path = svg.querySelector("path");
+    if (!path) {
+      path = document.createElementNS(SVG_NAMESPACE, "path");
+      svg.append(path);
     }
-  } else {
-    inner = document.createElement("div");
-    const svg = document.createElementNS(ns, "svg");
-    svg.setAttribute("viewBox", "0 0 24 24");
-    svg.setAttribute("width", "20");
-    svg.setAttribute("height", "20");
-    const path = document.createElementNS(ns, "path");
-    path.setAttribute("d", mutePath);
-    svg.append(path);
-    inner.append(svg);
+    path.setAttribute("d", MUTE_ICON_PATH);
   }
 
-  button.textContent = "";
-  button.append(inner);
+  button.append(content);
 
   button.addEventListener("click", (event) => {
     event.preventDefault();
@@ -182,260 +136,154 @@ function createTriggerButton(
 }
 
 function togglePopup(triggerButton: HTMLButtonElement): void {
-  if (!popup) {
-    createPopup();
-  }
-  if (!popup || !popupCountEl || !popupProgressEl) return;
-
-  popupTriggerButton = triggerButton;
-
-  popupCountEl.textContent = `Affiliates: ${latestUserIds.length}`;
-  popupProgressEl.textContent = "";
+  popup ??= createPopup();
+  const userIds = userIdsByPathname.get(location.pathname) ?? [];
+  popup.count.textContent = `Affiliates: ${userIds.length}`;
+  popup.progress.textContent = "";
 
   const rect = triggerButton.getBoundingClientRect();
-  popup.style.position = "fixed";
-  popup.style.left = `${Math.round(rect.left)}px`;
-  popup.style.top = `${Math.round(rect.bottom + 4)}px`;
-  popup.style.display = popup.style.display === "block" ? "none" : "block";
+  const { style } = popup.root;
+  style.left = `${Math.round(rect.left)}px`;
+  style.top = `${Math.round(rect.bottom + 4)}px`;
+  style.display = style.display === "block" ? "none" : "block";
 }
 
-function createPopup(): void {
-  if (popup) return;
+function createPopup(): Popup {
+  const root = document.createElement("div");
+  root.id = POPUP_ID;
+  root.style.cssText = `
+    position: fixed;
+    z-index: 9999;
+    display: none;
+    max-width: 260px;
+    padding: 8px;
+    border: 1px solid #ccc;
+    background-color: white;
+    color: black;
+  `;
 
-  const div = document.createElement("div");
-  div.id = POPUP_ID;
-  div.style.position = "fixed";
-  div.style.zIndex = "9999";
-  div.style.backgroundColor = "white";
-  div.style.color = "black";
-  div.style.border = "1px solid #ccc";
-  div.style.padding = "8px";
-  div.style.display = "none";
-  div.style.maxWidth = "260px";
+  const count = document.createElement("div");
 
-  const countEl = document.createElement("div");
-  const progressEl = document.createElement("div");
-  progressEl.style.marginTop = "4px";
+  const progress = document.createElement("div");
+  progress.style.marginTop = "4px";
 
-  const buttonsRow = document.createElement("div");
-  buttonsRow.style.marginTop = "8px";
-  buttonsRow.style.display = "flex";
-  buttonsRow.style.gap = "8px";
+  const buttons = document.createElement("div");
+  buttons.style.cssText = "display: flex; gap: 8px; margin-top: 8px";
 
-  const muteButton = document.createElement("button");
-  muteButton.type = "button";
-  muteButton.textContent = "Mute all";
-  muteButton.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    startMuteAction("mute");
-  });
-
-  const unmuteButton = document.createElement("button");
-  unmuteButton.type = "button";
-  unmuteButton.textContent = "Unmute all";
-  unmuteButton.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    startMuteAction("unmute");
-  });
-
-  buttonsRow.append(muteButton, unmuteButton);
-  div.append(countEl, progressEl, buttonsRow);
-
-  popup = div;
-  popupCountEl = countEl;
-  popupProgressEl = progressEl;
-
-  popupOutsideClickHandler = (event: MouseEvent) => {
-    if (!popup) return;
-    const target = event.target as Node | null;
-    if (
-      target &&
-      (popup.contains(target) ||
-        (popupTriggerButton && popupTriggerButton.contains(target)))
-    ) {
-      return;
-    }
-    popup.style.display = "none";
-  };
-
-  document.addEventListener("click", popupOutsideClickHandler);
-  document.body.append(div);
-}
-
-function teardownPopup(): void {
-  if (popupOutsideClickHandler) {
-    document.removeEventListener("click", popupOutsideClickHandler);
-    popupOutsideClickHandler = null;
-  }
-
-  const existingPopup = document.getElementById(POPUP_ID);
-  existingPopup?.remove();
-
-  popup = null;
-  popupTriggerButton = null;
-  popupCountEl = null;
-  popupProgressEl = null;
-}
-
-function startMuteAction(action: "mute" | "unmute"): void {
-  if (!popupProgressEl) return;
-
-  if (latestUserIds.length === 0) {
-    popupProgressEl.textContent =
-      "No affiliates found yet (scroll or refresh).";
-    return;
-  }
-
-  const total = latestUserIds.length;
-  const verb = action === "mute" ? "Muting" : "Unmuting";
-  popupProgressEl.textContent = `${verb}... 0 / ${total}`;
-
-  void muteOrUnmuteAll(
-    action,
-    (current, currentTotal) => {
-      if (!popupProgressEl) return;
-      popupProgressEl.textContent = `${verb}... ${current} / ${currentTotal}`;
-    },
-    () => {
-      if (!popupProgressEl) return;
-      popupProgressEl.textContent = action === "mute"
-        ? "Muted all"
-        : "Unmuted all";
-    },
-  );
-}
-
-async function muteOrUnmuteAll(
-  action: "mute" | "unmute",
-  onProgress?: (current: number, total: number) => void,
-  onDone?: (total: number) => void,
-): Promise<void> {
-  if (latestUserIds.length === 0) {
-    console.warn(
-      "[better-xitter] No affiliates users loaded yet (scroll/refresh page).",
-    );
-    return;
-  }
-
-  const endpointPath = action === "mute"
-    ? "/i/api/1.1/mutes/users/create.json"
-    : "/i/api/1.1/mutes/users/destroy.json";
-
-  const state = initNetState();
-  const referrer = location.href;
-
-  for (const [index, userId] of latestUserIds.entries()) {
-    if (onProgress) {
-      onProgress(index + 1, latestUserIds.length);
-    }
-    const result = await sendMuteRequest({
-      endpointPath,
-      userId,
-      referrer,
-      state,
+  for (const action of ["mute", "unmute"] as const) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = action === "mute" ? "Mute all" : "Unmute all";
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      runMuteAction(action, progress);
     });
-
-    if (!result.ok) {
-      console.warn(
-        `[better-xitter] ${action} failed for user_id=${userId}`,
-        result.error ?? result.status,
-      );
-    }
-
-    // Keep a modest delay to reduce burstiness; also gets overridden by
-    // server rate-limit headers when exhausted.
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    buttons.append(button);
   }
-  if (onDone) {
-    onDone(latestUserIds.length);
+
+  root.append(count, progress, buttons);
+  document.body.append(root);
+
+  return { root, count, progress };
+}
+
+function removePopup(): void {
+  popup?.root.remove();
+  popup = null;
+}
+
+async function runMuteAction(
+  action: MuteAction,
+  progress: HTMLElement,
+): Promise<void> {
+  const targets = userIdsByPathname.get(location.pathname) ?? [];
+  if (targets.length === 0) {
+    progress.textContent = "No affiliates found yet (scroll or refresh).";
+    return;
   }
-}
 
-type NetState = {
-  authorization: string;
-  ct0: string | null;
-  transactionId: string;
-};
-
-function updateTransactionId(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(95));
-  return [...bytes].map((x) => {
-    const i = ((x / 255) * 61) | 0;
-    return String.fromCharCode(
-      i + (i > 9 ? (i > 35 ? 61 : 55) : 48),
-    );
-  }).join("");
-}
-
-function initNetState(): NetState {
-  return {
-    authorization:
-      "Bearer AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA",
-    ct0: getCookie("ct0"),
-    transactionId: updateTransactionId(),
-  };
-}
-
-function buildHeaders(state: NetState): HeadersInit {
-  return {
-    authorization: state.authorization,
+  const verb = action === "mute" ? "Muting" : "Unmuting";
+  const headers = {
+    "authorization": BEARER_TOKEN,
     "content-type": "application/x-www-form-urlencoded",
-    "x-client-transaction-id": state.transactionId,
-    "x-csrf-token": state.ct0 ?? "",
+    "x-client-transaction-id": createTransactionId(),
+    "x-csrf-token": getCookie("ct0") ?? "",
     "x-twitter-active-user": "yes",
     "x-twitter-auth-type": "OAuth2Session",
   };
-}
 
-async function waitForRateLimit(response: Response): Promise<void> {
-  const remaining = response.headers.get("x-rate-limit-remaining");
-  const reset = response.headers.get("x-rate-limit-reset");
-  if (remaining == null || reset == null) return;
-
-  const remainingNum = Number(remaining);
-  if (!Number.isFinite(remainingNum) || remainingNum >= 1) return;
-
-  const resetTs = Number(reset);
-  if (!Number.isFinite(resetTs) || resetTs <= 0) return;
-
-  const seconds = resetTs - Math.floor(Date.now() / 1000);
-  if (seconds > 0) {
-    await new Promise((resolve) => setTimeout(resolve, seconds * 1000));
+  for (const [index, userId] of targets.entries()) {
+    progress.textContent = `${verb}... ${index + 1} / ${targets.length}`;
+    // oxlint-disable-next-line no-await-in-loop -- One request at a time, to respect X's rate limits.
+    await sendMuteRequest(action, userId, headers);
   }
+
+  progress.textContent = action === "mute" ? "Muted all" : "Unmuted all";
 }
 
-async function sendMuteRequest(input: {
-  endpointPath: string;
-  userId: string;
-  referrer: string;
-  state: NetState;
-}): Promise<{ ok: true } | { ok: false; status?: number; error?: unknown }> {
+async function sendMuteRequest(
+  action: MuteAction,
+  userId: string,
+  headers: HeadersInit,
+): Promise<void> {
+  const endpoint = action === "mute" ? "create" : "destroy";
+
   try {
-    const response = await fetch(`https://x.com${input.endpointPath}`, {
-      headers: buildHeaders(input.state),
-      referrer: input.referrer,
-      referrerPolicy: "strict-origin-when-cross-origin",
-      body: `user_id=${encodeURIComponent(input.userId)}`,
-      method: "POST",
-      mode: "cors",
-      credentials: "include",
-      signal: AbortSignal.timeout(10_000),
-    });
+    const response = await fetch(
+      `https://x.com/i/api/1.1/mutes/users/${endpoint}.json`,
+      {
+        method: "POST",
+        headers,
+        body: new URLSearchParams({ user_id: userId }),
+        credentials: "include",
+        referrer: location.href,
+        referrerPolicy: "strict-origin-when-cross-origin",
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      },
+    );
 
-    if (response.status >= 200 && response.status < 300) {
-      await waitForRateLimit(response);
-      return { ok: true };
+    if (!response.ok) {
+      console.warn(
+        `[better-xitter] ${action} failed for user_id=${userId}`,
+        response.status,
+      );
     }
 
-    if (response.status === 429 || response.status === 420) {
-      await waitForRateLimit(response);
-      return { ok: false, status: response.status };
+    if (response.ok || response.status === 420 || response.status === 429) {
+      await waitForRateLimitReset(response);
     }
-
-    return { ok: false, status: response.status };
   } catch (error) {
-    return { ok: false, error };
+    console.warn(
+      `[better-xitter] ${action} failed for user_id=${userId}`,
+      error,
+    );
+  }
+
+  await delay(REQUEST_INTERVAL_MS);
+}
+
+function createTransactionId(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(95));
+  const lastIndex = TRANSACTION_ID_ALPHABET.length - 1;
+
+  return [...bytes]
+    .map((byte) =>
+      TRANSACTION_ID_ALPHABET[Math.trunc((byte / 255) * lastIndex)]
+    )
+    .join("");
+}
+
+async function waitForRateLimitReset(response: Response): Promise<void> {
+  const remaining = Number(
+    response.headers.get("x-rate-limit-remaining") ?? Number.NaN,
+  );
+  const resetAt = Number(
+    response.headers.get("x-rate-limit-reset") ?? Number.NaN,
+  );
+  const secondsUntilReset = resetAt - Math.floor(Date.now() / 1000);
+
+  if (remaining < 1 && resetAt > 0 && secondsUntilReset > 0) {
+    await delay(secondsUntilReset * 1000);
   }
 }

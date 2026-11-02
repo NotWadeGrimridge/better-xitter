@@ -8,7 +8,7 @@ FIREFOX_XPI="dist/better-xitter-firefox.xpi"
 
 rm -rf dist
 
-deno run -A scripts/build.ts
+deno task build
 
 git tag -f "${TAG}"
 git push -f origin "${TAG}"

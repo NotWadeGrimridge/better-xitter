@@ -1,143 +1,96 @@
-import { isAffiliatesPathname } from "./shared.ts";
-import { fetchGraphqlJson, getPath } from "@/utils.ts";
+import { fetchGraphqlJson, getPath, isAffiliatesPathname } from "@/utils.ts";
 
-(() => {
-  const hookFlag = "__betterXitterAffiliatesPageXhrHookInstalled";
+// Runs in the page's main world. When an affiliates page asks for its first
+// page of affiliates, fetch the same query again with a large count, so the
+// content script gets every affiliate of that org at once.
+((): void => {
+  const INSTALLED_FLAG = "__betterXitterAffiliatesPageXhrHookInstalled";
+  const REPLAY_COUNT = 1000;
 
-  const win = window as unknown as Record<string, unknown>;
-  if (win[hookFlag] === true) return;
-  win[hookFlag] = true;
+  const page = globalThis as unknown as Record<string, unknown>;
+  if (page[INSTALLED_FLAG]) return;
+  page[INSTALLED_FLAG] = true;
 
-  let hasReplayedFirstRequest = false;
-  let lastUserIds: string[] = [];
-  let hasSeenResponse = false;
+  const replayedPathnames = new Set<string>();
+  const userIdsByPathname = new Map<string, string[]>();
 
-  const XHR = XMLHttpRequest.prototype;
+  const originalOpen = XMLHttpRequest.prototype.open;
 
-  const originalOpen = XHR.open as unknown as (
+  XMLHttpRequest.prototype.open = function open(
     this: XMLHttpRequest,
-    ...args: unknown[]
-  ) => void;
+    ...args: [method: string, url: string | URL, ...rest: unknown[]]
+  ): void {
+    const url = URL.parse(args[1], location.origin);
+    const { pathname } = location;
 
-  XHR.open = function (this: XMLHttpRequest, ...args: unknown[]) {
-    const urlArg = args[1];
-    const url = typeof urlArg === "string"
-      ? urlArg
-      : urlArg instanceof URL
-      ? urlArg.toString()
-      : "";
+    if (
+      url && isAffiliatesPathname(pathname) &&
+      !replayedPathnames.has(pathname) &&
+      url.pathname.includes("/graphql/") &&
+      url.pathname.endsWith("/UserBusinessProfileTeamTimeline")
+    ) {
+      const send = this.send.bind(this);
 
-    if (!hasReplayedFirstRequest && isTargetGraphqlRequest(url)) {
-      const instanceOriginalSend = this.send.bind(this);
-      const replayUrl = buildCountOverrideUrl(url, 1000);
-
-      this.send = function (
-        this: XMLHttpRequest,
-        ...sendArgs: unknown[]
-      ): void {
-        if (!hasReplayedFirstRequest) {
-          hasReplayedFirstRequest = true;
-          if (replayUrl) {
-            replayTeamTimelineRequest(replayUrl);
-          }
+      this.send = (body): void => {
+        if (!replayedPathnames.has(pathname)) {
+          replayedPathnames.add(pathname);
+          replayWithLargeCount(url, pathname);
         }
-        return (instanceOriginalSend as (...args: unknown[]) => void)(
-          ...sendArgs,
-        );
+        send(body);
       };
     }
 
-    return originalOpen.apply(this, args);
+    Reflect.apply(originalOpen, this, args);
   };
 
   addEventListener("message", (event: MessageEvent) => {
-    const data = event.data as Record<string, unknown> | null;
-    if (!data) return;
-    if (data.type !== "better-xitter:affiliates-mute-ready") return;
-    if (!hasSeenResponse) return;
-    postMessage(
-      {
-        type: "better-xitter:affiliates-users",
-        userIds: lastUserIds,
-      },
-      "*",
-    );
+    if (event.data?.type !== "better-xitter:affiliates-mute-ready") return;
+
+    for (const [pathname, userIds] of userIdsByPathname) {
+      postUserIds(pathname, userIds);
+    }
   });
 
-  async function replayTeamTimelineRequest(url: string): Promise<void> {
-    const payload = await fetchGraphqlJson(url);
-    if (!payload) return;
-
-    const userIds = extractUserIdsFromTeamTimeline(payload);
-    lastUserIds = userIds;
-    hasSeenResponse = true;
-
+  function postUserIds(pathname: string, userIds: string[]): void {
     postMessage(
-      {
-        type: "better-xitter:affiliates-users",
-        userIds,
-      },
+      { type: "better-xitter:affiliates-users", pathname, userIds },
       "*",
     );
   }
 
-  function isTargetGraphqlRequest(url: string): boolean {
-    if (!isAffiliatesPathname(location.pathname)) {
-      return false;
-    }
+  async function replayWithLargeCount(
+    url: URL,
+    pathname: string,
+  ): Promise<void> {
+    const variables = parseVariables(url.searchParams.get("variables"));
+    if (!variables) return;
 
-    let parsed: URL;
-    try {
-      parsed = new URL(
-        url,
-        location.origin,
-      );
-    } catch {
-      return false;
-    }
+    const replayUrl = new URL(url);
+    replayUrl.searchParams.set(
+      "variables",
+      JSON.stringify({ ...variables, count: REPLAY_COUNT }),
+    );
 
-    const pathname = parsed.pathname;
-    return pathname.includes("/graphql/") &&
-      pathname.endsWith("/UserBusinessProfileTeamTimeline");
+    const payload = await fetchGraphqlJson(replayUrl.toString());
+    if (!payload) return;
+
+    const userIds = extractUserIds(payload);
+    userIdsByPathname.set(pathname, userIds);
+    postUserIds(pathname, userIds);
   }
 
-  function buildCountOverrideUrl(
-    originalUrl: string,
-    count: number,
-  ): string | null {
-    let url: URL;
+  function parseVariables(raw: string | null): object | null {
+    if (!raw) return null;
+
     try {
-      url = new URL(
-        originalUrl,
-        location.origin,
-      );
+      const variables: unknown = JSON.parse(raw);
+      return typeof variables === "object" ? variables : null;
     } catch {
       return null;
     }
-
-    const pathname = url.pathname;
-    const isTeamTimelinePath = pathname.includes("/graphql/") &&
-      pathname.endsWith("/UserBusinessProfileTeamTimeline");
-    if (!isTeamTimelinePath) return null;
-
-    const variablesRaw = url.searchParams.get("variables");
-    if (!variablesRaw) return null;
-
-    let variables: Record<string, unknown>;
-    try {
-      const parsed = JSON.parse(variablesRaw);
-      if (typeof parsed !== "object" || parsed === null) return null;
-      variables = parsed as Record<string, unknown>;
-    } catch {
-      return null;
-    }
-
-    variables.count = count;
-    url.searchParams.set("variables", JSON.stringify(variables));
-    return url.toString();
   }
 
-  function extractUserIdsFromTeamTimeline(payload: unknown): string[] {
+  function extractUserIds(payload: unknown): string[] {
     const instructions = getPath(payload, [
       "data",
       "user",
@@ -151,21 +104,18 @@ import { fetchGraphqlJson, getPath } from "@/utils.ts";
     const userIds = new Set<string>();
 
     for (const instruction of instructions) {
-      const entries = (instruction as Record<string, unknown> | null)?.entries;
+      const entries = getPath(instruction, ["entries"]);
       if (!Array.isArray(entries)) continue;
 
       for (const entry of entries) {
-        const user = getPath(entry, [
+        const userId = getPath(entry, [
           "content",
           "itemContent",
           "user_results",
           "result",
+          "rest_id",
         ]);
-        if (typeof user !== "object" || user === null) continue;
-
-        const rest_id = (user as Record<string, unknown>).rest_id;
-        if (typeof rest_id !== "string") continue;
-        userIds.add(rest_id);
+        if (typeof userId === "string") userIds.add(userId);
       }
     }
 

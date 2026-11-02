@@ -2,6 +2,6 @@
 
 set -ex
 
-deno check src/ scripts/
-deno lint src/ scripts/
-deno fmt src/ scripts/
+deno task check
+deno task lint
+deno fmt src/ scripts/ .oxlintrc.json

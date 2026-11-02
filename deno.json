@@ -13,11 +13,10 @@
   },
   "imports": {
     "@/": "./src/",
-    "@std/async": "jsr:@std/async@^1.4.0",
-    "@std/collections": "jsr:@std/collections@^1.2.0",
+    "@std/async": "jsr:@std/async@^1.5.1",
     "@std/fs": "jsr:@std/fs@^1.0.24",
-    "@std/path": "jsr:@std/path@^1.1.5",
-    "@types/chrome": "npm:@types/chrome@^0.2.0",
+    "@std/path": "jsr:@std/path@^1.1.6",
+    "@types/chrome": "npm:@types/chrome@^0.3.7",
     "fflate": "npm:fflate@^0.8.3"
   },
   "lint": {
@@ -29,6 +28,7 @@
   "tasks": {
     "dev": "deno run --allow-read --allow-write --allow-run --watch=src scripts/build.ts",
     "build": "deno run --allow-read --allow-write --allow-run scripts/build.ts",
-    "check": "deno check src/"
+    "check": "deno check src/ scripts/",
+    "lint": "deno lint src/ scripts/ && deno run --allow-read --allow-env --allow-ffi npm:oxlint@1.90.0 --deny-warnings src scripts"
   }
 }

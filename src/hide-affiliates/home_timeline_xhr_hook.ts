@@ -1,113 +1,68 @@
 import { getPath } from "@/utils.ts";
 
-(() => {
-  const hookFlag = "__betterXitterHomeTimelineXhrHookInstalled";
-  const maxBufferedPairs = 5000;
+// Runs in the page's main world, because content scripts live in an isolated
+// world and cannot patch the page's own XMLHttpRequest.
+((): void => {
+  const INSTALLED_FLAG = "__betterXitterHomeTimelineXhrHookInstalled";
+  const MAX_SEEN_PAIRS = 5000;
 
-  const win = window as unknown as Record<string, unknown>;
-  if (win[hookFlag] === true) return;
-  win[hookFlag] = true;
+  const page = globalThis as unknown as Record<string, unknown>;
+  if (page[INSTALLED_FLAG]) return;
+  page[INSTALLED_FLAG] = true;
 
-  // This script runs in the page's MAIN world (not the extension content-script world).
-  // We patch XHR here because content scripts run in an isolated world and cannot
-  // monkeypatch the page's own XMLHttpRequest/fetch implementations.
-  //
-  // We also implement a small "ready/replay" handshake with the content script:
-  // the page can emit affiliation pairs before the content script installs its
-  // `message` listener (postMessage has no buffering), so we cache and replay once
-  // the content script signals readiness.
-  type Pair = [string, string];
+  type AffiliationPair = [author: string, org: string];
 
-  let affiliateReady = false;
-  let bufferedPairs: Pair[] = [];
+  // Pairs are posted as soon as they are seen. The content script may not be
+  // listening yet, so they are also kept and replayed on "affiliate-ready".
+  const seenPairs: AffiliationPair[] = [];
 
-  const XHR = XMLHttpRequest.prototype as XMLHttpRequest & {
-    __betterXitterHomeTimelineHooked?: boolean;
-  };
+  const originalOpen = XMLHttpRequest.prototype.open;
 
-  const originalOpen = XHR.open as unknown as (
+  XMLHttpRequest.prototype.open = function open(
     this: XMLHttpRequest,
-    ...args: unknown[]
-  ) => void;
-
-  XHR.open = function (...args: unknown[]) {
-    const urlArg = args[1];
-    const url = typeof urlArg === "string"
-      ? urlArg
-      : urlArg instanceof URL
-      ? urlArg.toString()
-      : "";
-
-    let pathname: string;
-    try {
-      pathname = new URL(url, location.origin).pathname;
-    } catch {
-      return originalOpen.apply(this, args);
+    ...args: [method: string, url: string | URL, ...rest: unknown[]]
+  ): void {
+    const pathname = URL.parse(args[1], location.origin)?.pathname ?? "";
+    if (pathname.includes("/graphql/") && pathname.endsWith("/HomeTimeline")) {
+      this.addEventListener("load", () => handleHomeTimeline(this));
     }
 
-    const isHomeTimeline = pathname.includes("/graphql/") &&
-      pathname.endsWith("/HomeTimeline");
-    if (isHomeTimeline && !this.__betterXitterHomeTimelineHooked) {
-      this.__betterXitterHomeTimelineHooked = true;
-      this.addEventListener("load", () => {
-        let payload: unknown;
-        if (this.responseType === "json") {
-          payload = this.response;
-        } else {
-          const text = this.responseText;
-          if (!text) return;
-          payload = text;
-        }
-
-        if (typeof payload === "string") {
-          try {
-            payload = JSON.parse(payload);
-          } catch {
-            return;
-          }
-        }
-
-        const pairs = extractAffiliationPairs(payload);
-        if (pairs.length === 0) return;
-
-        if (affiliateReady) {
-          postMessage(
-            {
-              type: "better-xitter:home-timeline-affiliations",
-              pairs,
-            },
-            "*",
-          );
-          return;
-        }
-
-        const remaining = maxBufferedPairs - bufferedPairs.length;
-        if (remaining <= 0) return;
-        bufferedPairs.push(...pairs.slice(0, remaining));
-      });
-    }
-
-    return originalOpen.apply(this, args);
+    Reflect.apply(originalOpen, this, args);
   };
 
   addEventListener("message", (event: MessageEvent) => {
-    const data = event.data as Record<string, unknown> | null;
-    if (!data) return;
-    if (data.type !== "better-xitter:affiliate-ready") return;
-    if (affiliateReady) return;
-    affiliateReady = true;
-    if (bufferedPairs.length === 0) return;
-    postMessage(
-      {
-        type: "better-xitter:home-timeline-affiliations",
-        pairs: bufferedPairs,
-      },
-      "*",
-    );
-    bufferedPairs = [];
+    if (event.data?.type !== "better-xitter:affiliate-ready") return;
+    if (seenPairs.length > 0) postPairs(seenPairs);
   });
 
-  function extractAffiliationPairs(payload: unknown): Pair[] {
+  function handleHomeTimeline(xhr: XMLHttpRequest): void {
+    const pairs = extractAffiliationPairs(readJson(xhr));
+    if (pairs.length === 0) return;
+
+    postPairs(pairs);
+
+    const room = MAX_SEEN_PAIRS - seenPairs.length;
+    seenPairs.push(...pairs.slice(0, Math.max(room, 0)));
+  }
+
+  function postPairs(pairs: AffiliationPair[]): void {
+    postMessage(
+      { type: "better-xitter:home-timeline-affiliations", pairs },
+      "*",
+    );
+  }
+
+  function readJson(xhr: XMLHttpRequest): unknown {
+    if (xhr.responseType === "json") return xhr.response;
+
+    try {
+      return JSON.parse(xhr.responseText);
+    } catch {
+      return null;
+    }
+  }
+
+  function extractAffiliationPairs(payload: unknown): AffiliationPair[] {
     const instructions = getPath(payload, [
       "data",
       "home",
@@ -116,10 +71,10 @@ import { getPath } from "@/utils.ts";
     ]);
     if (!Array.isArray(instructions)) return [];
 
-    const results: Pair[] = [];
+    const pairs: AffiliationPair[] = [];
 
     for (const instruction of instructions) {
-      const entries = (instruction as Record<string, unknown> | null)?.entries;
+      const entries = getPath(instruction, ["entries"]);
       if (!Array.isArray(entries)) continue;
 
       for (const entry of entries) {
@@ -128,74 +83,52 @@ import { getPath } from "@/utils.ts";
           "itemContent",
           "tweet_results",
           "result",
-        ]) ??
-          getPath(entry, [
-            "content",
-            "items",
-            0,
-            "item",
-            "itemContent",
-            "tweet_results",
-            "result",
-          ]);
+        ]) ?? getPath(entry, [
+          "content",
+          "items",
+          0,
+          "item",
+          "itemContent",
+          "tweet_results",
+          "result",
+        ]);
         if (!tweet) continue;
 
-        collectPairsFromTweet(tweet, results);
-
         const quotedTweet = getPath(tweet, ["quoted_status_result", "result"]);
-        if (quotedTweet) collectPairsFromTweet(quotedTweet, results);
+
+        for (const candidate of [tweet, quotedTweet]) {
+          const pair = extractAffiliationPair(candidate);
+          if (pair) pairs.push(pair);
+        }
       }
     }
 
-    return results;
+    return pairs;
   }
 
-  function collectPairsFromTweet(tweet: unknown, results: Pair[]): void {
-    const author = getPath(tweet, [
-      "core",
-      "user_results",
-      "result",
-      "core",
-      "screen_name",
-    ]);
-    if (typeof author !== "string" || author.length === 0) return;
-
-    const affiliateUrl = getPath(tweet, [
-      "core",
-      "user_results",
-      "result",
+  function extractAffiliationPair(tweet: unknown): AffiliationPair | null {
+    const user = getPath(tweet, ["core", "user_results", "result"]);
+    const author = getPath(user, ["core", "screen_name"]);
+    const affiliateUrl = getPath(user, [
       "affiliates_highlighted_label",
       "label",
       "url",
       "url",
     ]);
-    if (typeof affiliateUrl !== "string" || affiliateUrl.length === 0) {
-      return;
-    }
+    if (typeof author !== "string" || !author) return null;
+    if (typeof affiliateUrl !== "string") return null;
 
-    const org = parseHandleFromProfileUrl(affiliateUrl);
-    if (!org) return;
-
-    results.push([author.toLowerCase(), org.toLowerCase()]);
-  }
-
-  function parseHandleFromProfileUrl(url: string): string | null {
-    let parsed: URL;
-    try {
-      parsed = new URL(url);
-    } catch {
+    const url = URL.parse(affiliateUrl);
+    if (!url || !/^(?:www\.)?(?:x|twitter)\.com$/u.test(url.hostname)) {
       return null;
     }
 
-    const hostname = parsed.hostname.startsWith("www.")
-      ? parsed.hostname.slice(4)
-      : parsed.hostname;
-    if (hostname !== "x.com" && hostname !== "twitter.com") {
-      return null;
-    }
-    const path = parsed.pathname.replace(/^\/+/, "");
-    const first = path.split("/")[0]?.trim();
-    if (!first) return null;
-    return first.startsWith("@") ? first.slice(1) : first;
+    const org = url.pathname.split("/").find(Boolean)?.trim().replace(
+      /^@/u,
+      "",
+    );
+    if (!org) return null;
+
+    return [author.toLowerCase(), org.toLowerCase()];
   }
 })();

@@ -3,66 +3,243 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>better-xitter settings</title>
+    <title>Better Xitter settings</title>
     <style>
-      body {
-        min-width: 250px;
-        font-size: 13px;
+    :root {
+      color-scheme: light dark;
+      --background: #ffffff;
+      --surface: #f7f9f9;
+      --border: #e6ecf0;
+      --text: #0f1419;
+      --muted: #536471;
+      --track: #cfd9de;
+      --accent: #1d9bf0;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --background: #000000;
+        --surface: #16181c;
+        --border: #2f3336;
+        --text: #e7e9ea;
+        --muted: #71767b;
+        --track: #3e4144;
       }
-      ul {
-        list-style: none;
-        padding: 0;
-        margin: 0;
-      }
-      label {
-        display: inline-flex;
-        align-items: center;
-      }
-      summary {
-        padding: 4px 6px;
-        margin: 4px 0;
-        outline: 1px solid #ddd;
-        border-radius: 4px;
-      }
-      hr {
-        border: 0;
-        border-top: 1px solid #ddd;
-      }
-      li > details > div {
-        padding: 4px 0 0 0;
-      }
-      li {
-        margin: 4px 0;
-      }
-      .child-list {
-        margin: 4px 0 0 12px;
-      }
-      .child-list label {
-        padding-left: 8px;
-      }
-      .is-disabled {
-        opacity: 0.6;
-      }
-      .help-icon {
-        display: inline-block;
-        margin-left: 4px;
-        cursor: help;
-        width: 12px;
-        height: 12px;
-        border-radius: 50%;
-        border: 1px solid #888;
-        background-color: #f8f8f8;
-        color: #333;
-        font-size: 9px;
-        line-height: 12px;
-        text-align: center;
-        vertical-align: text-bottom;
-      }
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      width: 320px;
+      margin: 0;
+      padding: 12px;
+      background: var(--background);
+      color: var(--text);
+      font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+
+    header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      padding: 2px 4px 12px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 800;
+    }
+
+    #version {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    main {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    ul {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .section {
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface);
+    }
+
+    summary {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      font-weight: 700;
+      cursor: pointer;
+      list-style: none;
+      user-select: none;
+    }
+
+    summary::-webkit-details-marker {
+      display: none;
+    }
+
+    summary::after {
+      content: "";
+      width: 6px;
+      height: 6px;
+      margin: 0 2px 3px 2px;
+      border-right: 2px solid var(--muted);
+      border-bottom: 2px solid var(--muted);
+      transform: rotate(45deg);
+      transition: transform 0.15s;
+    }
+
+    .section[open] > summary::after {
+      margin-bottom: -3px;
+      transform: rotate(-135deg);
+    }
+
+    .count {
+      margin-left: auto;
+      padding: 1px 8px;
+      border-radius: 999px;
+      background: var(--border);
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .rows {
+      padding: 2px 12px 6px;
+      border-top: 1px solid var(--border);
+    }
+
+    .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 7px 0;
+    }
+
+    label.row {
+      cursor: pointer;
+    }
+
+    .child-list {
+      margin: 0 0 4px 4px;
+      padding-left: 12px;
+      border-left: 2px solid var(--border);
+    }
+
+    .field {
+      padding: 4px 0;
+    }
+
+    .hint {
+      margin: 0;
+      padding: 0 12px 10px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    input[role="switch"] {
+      position: relative;
+      flex: none;
+      width: 34px;
+      height: 20px;
+      margin: 0;
+      border-radius: 999px;
+      background: var(--track);
+      cursor: pointer;
+      appearance: none;
+      transition: background 0.15s;
+    }
+
+    input[role="switch"]::before {
+      content: "";
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #ffffff;
+      box-shadow: 0 1px 2px rgb(0 0 0 / 0.3);
+      transition: transform 0.15s;
+    }
+
+    input[role="switch"]:checked {
+      background: var(--accent);
+    }
+
+    input[role="switch"]:checked::before {
+      transform: translateX(14px);
+    }
+
+    input[type="text"] {
+      width: 100%;
+      padding: 7px 10px;
+      border: 1px solid var(--track);
+      border-radius: 8px;
+      background: var(--background);
+      color: var(--text);
+      font: inherit;
+    }
+
+    input[type="text"]:focus {
+      border-color: var(--accent);
+      outline: none;
+    }
+
+    input:focus-visible,
+    .segmented label:has(:focus-visible) {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    .segmented {
+      display: inline-flex;
+      padding: 2px;
+      border-radius: 999px;
+      background: var(--border);
+    }
+
+    .segmented label {
+      padding: 3px 12px;
+      border-radius: 999px;
+      color: var(--muted);
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .segmented label:has(:checked) {
+      background: var(--accent);
+      color: #ffffff;
+    }
+
+    .segmented input {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+    }
     </style>
   </head>
   <body>
-    <h2>Better Xitter</h2>
-    <div id="root"></div>
+    <header>
+      <h1>Better Xitter</h1>
+      <span id="version"></span>
+    </header>
+    <main id="root"></main>
     <script type="module" src="popup.js"></script>
   </body>
 </html>
